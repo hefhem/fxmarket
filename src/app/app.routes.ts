@@ -30,24 +30,20 @@ export const routes: Routes = [
       },
       {
         path: 'watchlist',
-        loadComponent: () => import('./features/placeholder/placeholder.component').then(m => m.PlaceholderComponent),
-        data: { title: 'Watchlist', icon: 'bookmark', description: 'Track your preferred currency pairs - coming in Phase 3' }
+        loadComponent: () => import('./features/watchlist/watchlist.component').then(m => m.WatchlistComponent)
       },
       {
         path: 'alerts',
-        loadComponent: () => import('./features/placeholder/placeholder.component').then(m => m.PlaceholderComponent),
-        data: { title: 'Alerts', icon: 'notifications', description: 'Set up alert rules and notifications - coming in Phase 3' }
+        loadComponent: () => import('./features/alerts/alerts.component').then(m => m.AlertsComponent)
       },
       {
         path: 'settings',
-        loadComponent: () => import('./features/placeholder/placeholder.component').then(m => m.PlaceholderComponent),
-        data: { title: 'Settings', icon: 'settings', description: 'Manage your profile and preferences - coming in Phase 3' }
+        loadComponent: () => import('./features/settings/settings.component').then(m => m.SettingsComponent)
       },
       {
         path: 'admin',
         canActivate: [adminGuard],
-        loadComponent: () => import('./features/placeholder/placeholder.component').then(m => m.PlaceholderComponent),
-        data: { title: 'Admin Panel', icon: 'admin_panel_settings', description: 'User management and system status - coming in Phase 3' }
+        loadComponent: () => import('./features/admin/admin.component').then(m => m.AdminComponent)
       },
       {
         path: 'user-guide',
