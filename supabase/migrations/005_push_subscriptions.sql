@@ -34,12 +34,22 @@ CREATE POLICY "Service role full access to push subscriptions"
   ON push_subscriptions FOR ALL
   USING (auth.role() = 'service_role');
 
--- Add RBAC permissions for signals and push subscriptions
-INSERT INTO role_permissions (role, permission) VALUES
-  ('user', 'view_signals'),
-  ('user', 'manage_push_subscriptions'),
-  ('admin', 'view_signals'),
-  ('admin', 'manage_push_subscriptions')
+-- Add new permissions
+INSERT INTO permissions (name, description, resource, action) VALUES
+  ('view_signals', 'View trade signals page', 'signals', 'read'),
+  ('manage_push_subscriptions', 'Manage push notification subscriptions', 'push_subscriptions', 'write')
+ON CONFLICT (name) DO NOTHING;
+
+-- Assign to user role
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r, permissions p
+WHERE r.name = 'user' AND p.name IN ('view_signals', 'manage_push_subscriptions')
+ON CONFLICT DO NOTHING;
+
+-- Assign to admin role (admin gets all, but explicit for new permissions)
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r, permissions p
+WHERE r.name = 'admin' AND p.name IN ('view_signals', 'manage_push_subscriptions')
 ON CONFLICT DO NOTHING;
 
 -- Updated_at trigger
