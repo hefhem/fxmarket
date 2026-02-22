@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, effect } from '@angular/core';
 import { SwPush } from '@angular/service-worker';
 import { SupabaseService } from './supabase.service';
 import { AuthService } from './auth.service';
@@ -19,15 +19,40 @@ export class PushNotificationService {
     if (typeof Notification !== 'undefined') {
       this.permissionState.set(Notification.permission);
     }
-    this.checkExistingSubscription();
+
+    // Re-check subscription state whenever the user changes (login/reload)
+    effect(() => {
+      const user = this.auth.currentUser();
+      if (user) {
+        this.checkExistingSubscription(user.id);
+      } else {
+        this.isSubscribed.set(false);
+      }
+    });
   }
 
-  private async checkExistingSubscription() {
-    if (!this.swPush.isEnabled) return;
-
+  private async checkExistingSubscription(userId: string) {
     try {
-      const sub = await this.swPush.subscription.toPromise();
-      this.isSubscribed.set(!!sub);
+      // Check the database for an active subscription for this user
+      const { data, error } = await this.supabase.from('push_subscriptions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (!error && data && data.length > 0) {
+        this.isSubscribed.set(true);
+        return;
+      }
+
+      // Fallback: also check SwPush if service worker is active
+      if (this.swPush.isEnabled) {
+        const sub = await this.swPush.subscription.toPromise();
+        this.isSubscribed.set(!!sub);
+        return;
+      }
+
+      this.isSubscribed.set(false);
     } catch {
       this.isSubscribed.set(false);
     }
@@ -70,21 +95,25 @@ export class PushNotificationService {
   }
 
   async unsubscribe(): Promise<boolean> {
-    if (!this.swPush.isEnabled) return false;
-
     try {
-      const sub = await this.swPush.subscription.toPromise();
-      if (!sub) return false;
-
       const userId = this.auth.currentUser()?.id;
+
+      // Remove all subscriptions for this user from DB
       if (userId) {
         await this.supabase.from('push_subscriptions')
           .delete()
-          .eq('user_id', userId)
-          .eq('endpoint', sub.endpoint);
+          .eq('user_id', userId);
       }
 
-      await this.swPush.unsubscribe();
+      // Also unsubscribe from SwPush if active
+      if (this.swPush.isEnabled) {
+        try {
+          await this.swPush.unsubscribe();
+        } catch {
+          // SwPush may not have an active subscription, that's fine
+        }
+      }
+
       this.isSubscribed.set(false);
       return true;
     } catch (err) {
