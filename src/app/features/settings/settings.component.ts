@@ -14,7 +14,16 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { AuthService } from '../../core/services/auth.service';
 import { PushNotificationService } from '../../core/services/push-notification.service';
+import { SupabaseService } from '../../core/services/supabase.service';
 import { ALL_PAIRS } from '../../core/models';
+
+interface DataSource {
+  id: string;
+  source_name: string;
+  display_name: string;
+  description: string;
+  enabled: boolean;
+}
 
 @Component({
   selector: 'app-settings',
@@ -156,6 +165,50 @@ import { ALL_PAIRS } from '../../core/models';
           }
         </mat-card-content>
       </mat-card>
+
+      <mat-divider></mat-divider>
+
+      <!-- Data Sources Section -->
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>cloud</mat-icon> Data Sources
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          @if (sourcesLoading()) {
+            <div class="loading"><mat-spinner diameter="24"></mat-spinner></div>
+          } @else {
+            <p class="push-description">Data sources that power economic event fetching and analysis.</p>
+            <div class="sources-list">
+              @for (src of dataSources(); track src.id) {
+                <div class="source-row">
+                  <div class="source-icon">
+                    <mat-icon>{{ getSourceIcon(src.source_name) }}</mat-icon>
+                  </div>
+                  <div class="source-info">
+                    <div class="source-name">{{ src.display_name }}</div>
+                    <div class="source-desc">{{ src.description }}</div>
+                  </div>
+                  <div class="source-toggle">
+                    @if (auth.isAdmin()) {
+                      <mat-slide-toggle
+                        [checked]="src.enabled"
+                        (change)="toggleSource(src, $event.checked)"
+                        color="primary">
+                      </mat-slide-toggle>
+                    } @else {
+                      <span class="source-chip" [class.enabled]="src.enabled" [class.disabled]="!src.enabled">
+                        {{ src.enabled ? 'Enabled' : 'Disabled' }}
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </mat-card-content>
+      </mat-card>
     </div>
   `,
   styles: [`
@@ -182,6 +235,29 @@ import { ALL_PAIRS } from '../../core/models';
     .push-status mat-icon { font-size: 18px; width: 18px; height: 18px; color: #ff9800; }
     .push-description { color: rgba(255,255,255,0.6); font-size: 13px; margin-bottom: 16px; }
     .push-toggle-row { display: flex; align-items: center; gap: 12px; }
+    .loading { text-align: center; padding: 16px; }
+    .sources-list { display: flex; flex-direction: column; gap: 12px; }
+    .source-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+    }
+    .source-icon mat-icon { color: rgba(255,255,255,0.4); }
+    .source-info { flex: 1; }
+    .source-name { font-weight: 600; font-size: 14px; }
+    .source-desc { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 2px; }
+    .source-chip {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .source-chip.enabled { background: rgba(76,175,80,0.15); color: #4caf50; }
+    .source-chip.disabled { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.35); }
   `]
 })
 export class SettingsComponent implements OnInit {
@@ -199,10 +275,13 @@ export class SettingsComponent implements OnInit {
   ];
 
   togglingPush = signal(false);
+  dataSources = signal<DataSource[]>([]);
+  sourcesLoading = signal(true);
 
   constructor(
     public auth: AuthService,
     public pushService: PushNotificationService,
+    private supabase: SupabaseService,
     private fb: FormBuilder,
     private snackBar: MatSnackBar
   ) {
@@ -232,6 +311,47 @@ export class SettingsComponent implements OnInit {
         default_pairs: profile.default_pairs || ['EUR/USD', 'GBP/USD', 'USD/JPY']
       });
     }
+    this.loadDataSources();
+  }
+
+  private async loadDataSources() {
+    try {
+      const { data } = await this.supabase.from('data_source_settings')
+        .select('*')
+        .order('display_name');
+      this.dataSources.set((data ?? []) as DataSource[]);
+    } catch (err) {
+      console.error('Failed to load data sources:', err);
+    } finally {
+      this.sourcesLoading.set(false);
+    }
+  }
+
+  async toggleSource(src: DataSource, enabled: boolean) {
+    const { error } = await this.supabase.from('data_source_settings')
+      .update({ enabled })
+      .eq('id', src.id);
+
+    if (error) {
+      this.snackBar.open('Failed to update source', 'Close', { duration: 5000 });
+    } else {
+      src.enabled = enabled;
+      this.snackBar.open(
+        `${src.display_name} ${enabled ? 'enabled' : 'disabled'}`,
+        'Close', { duration: 3000 }
+      );
+    }
+  }
+
+  getSourceIcon(name: string): string {
+    const icons: Record<string, string> = {
+      finnhub: 'show_chart',
+      forexfactory: 'event_note',
+      rss: 'rss_feed',
+      alphavantage: 'trending_up',
+      fred: 'account_balance'
+    };
+    return icons[name] || 'cloud';
   }
 
   async saveProfile() {

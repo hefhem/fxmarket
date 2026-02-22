@@ -186,7 +186,9 @@ import { MatDividerModule } from '@angular/material/divider';
             <li><strong>Default Pairs</strong> - Choose which pairs to show by default</li>
             <li><strong>Password</strong> - Change your account password</li>
             <li><strong>Push Notifications</strong> - Enable/disable browser push notifications for strong signals</li>
+            <li><strong>Data Sources</strong> - View all 5 data sources (Finnhub, Forex Factory, RSS, Alpha Vantage, FRED) and their enabled/disabled status. Admins can toggle sources on or off to control which data feeds are active.</li>
           </ul>
+          <p><strong>Admin Actions:</strong> Admins can also manually trigger edge functions (Fetch Events, Analyze Events, Generate Daily Bias) from the Admin Panel's Actions tab, without waiting for the scheduled cron jobs.</p>
         </mat-expansion-panel>
       </mat-accordion>
 

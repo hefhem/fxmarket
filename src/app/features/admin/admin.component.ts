@@ -182,6 +182,83 @@ interface SourceHealth {
           </div>
         </mat-tab>
 
+        <!-- Actions -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon>play_circle</mat-icon>&nbsp;Actions
+          </ng-template>
+          <div class="tab-content">
+            <p class="actions-desc">Manually trigger edge functions. These run the same logic as the scheduled cron jobs.</p>
+            <div class="actions-grid">
+              <mat-card class="action-card">
+                <mat-card-content>
+                  <mat-icon>download</mat-icon>
+                  <h3>Fetch Events</h3>
+                  <p>Fetch economic events from all enabled data sources</p>
+                  <button mat-raised-button color="primary"
+                    (click)="triggerFunction('fetch-events')"
+                    [disabled]="triggerLoading().has('fetch-events')">
+                    @if (triggerLoading().has('fetch-events')) {
+                      <mat-spinner diameter="18"></mat-spinner>
+                    } @else {
+                      Run
+                    }
+                  </button>
+                  @if (triggerResults()['fetch-events']; as result) {
+                    <div class="trigger-result" [class.success]="!result.error" [class.error]="result.error">
+                      {{ result.summary }}
+                    </div>
+                  }
+                </mat-card-content>
+              </mat-card>
+
+              <mat-card class="action-card">
+                <mat-card-content>
+                  <mat-icon>psychology</mat-icon>
+                  <h3>Analyze Events</h3>
+                  <p>Send unanalyzed events to Claude AI for analysis</p>
+                  <button mat-raised-button color="primary"
+                    (click)="triggerFunction('analyze-events')"
+                    [disabled]="triggerLoading().has('analyze-events')">
+                    @if (triggerLoading().has('analyze-events')) {
+                      <mat-spinner diameter="18"></mat-spinner>
+                    } @else {
+                      Run
+                    }
+                  </button>
+                  @if (triggerResults()['analyze-events']; as result) {
+                    <div class="trigger-result" [class.success]="!result.error" [class.error]="result.error">
+                      {{ result.summary }}
+                    </div>
+                  }
+                </mat-card-content>
+              </mat-card>
+
+              <mat-card class="action-card">
+                <mat-card-content>
+                  <mat-icon>auto_graph</mat-icon>
+                  <h3>Generate Daily Bias</h3>
+                  <p>Generate directional bias for all currency pairs</p>
+                  <button mat-raised-button color="primary"
+                    (click)="triggerFunction('generate-daily-bias')"
+                    [disabled]="triggerLoading().has('generate-daily-bias')">
+                    @if (triggerLoading().has('generate-daily-bias')) {
+                      <mat-spinner diameter="18"></mat-spinner>
+                    } @else {
+                      Run
+                    }
+                  </button>
+                  @if (triggerResults()['generate-daily-bias']; as result) {
+                    <div class="trigger-result" [class.success]="!result.error" [class.error]="result.error">
+                      {{ result.summary }}
+                    </div>
+                  }
+                </mat-card-content>
+              </mat-card>
+            </div>
+          </div>
+        </mat-tab>
+
         <!-- System Logs -->
         <mat-tab>
           <ng-template mat-tab-label>
@@ -312,6 +389,32 @@ interface SourceHealth {
       font-size: 14px;
     }
     .events-24h mat-icon { color: #4caf50; }
+    .actions-desc { color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 16px; }
+    .actions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .action-card mat-card-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 8px;
+    }
+    .action-card mat-icon { font-size: 32px; width: 32px; height: 32px; color: #4caf50; }
+    .action-card h3 { margin: 0; font-size: 16px; }
+    .action-card p { font-size: 12px; color: rgba(255,255,255,0.45); margin: 0 0 8px; }
+    .trigger-result {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      width: 100%;
+      word-break: break-word;
+    }
+    .trigger-result.success { background: rgba(76,175,80,0.1); color: #4caf50; }
+    .trigger-result.error { background: rgba(244,67,54,0.1); color: #f44336; }
   `]
 })
 export class AdminComponent implements OnInit {
@@ -323,6 +426,8 @@ export class AdminComponent implements OnInit {
   usersLoading = signal(true);
   logsLoading = signal(true);
   healthLoading = signal(true);
+  triggerLoading = signal<Set<string>>(new Set());
+  triggerResults = signal<Record<string, { summary: string; error?: boolean }>>({});
 
   userColumns = ['email', 'full_name', 'roles', 'created_at', 'actions'];
 
@@ -405,7 +510,7 @@ export class AdminComponent implements OnInit {
       this.events24h.set(count ?? 0);
 
       // Parse source health from log messages
-      const sources = ['finnhub', 'forexfactory', 'rss'];
+      const sources = ['finnhub', 'forexfactory', 'rss', 'alphavantage', 'fred'];
       const health: SourceHealth[] = sources.map(source => {
         const logs = recentLogs ?? [];
         const successLogs = logs.filter(l => l.level === 'info' && l.message.includes(source));
@@ -436,6 +541,39 @@ export class AdminComponent implements OnInit {
       console.error('Failed to load health data:', err);
     } finally {
       this.healthLoading.set(false);
+    }
+  }
+
+  async triggerFunction(name: string) {
+    const loading = new Set(this.triggerLoading());
+    loading.add(name);
+    this.triggerLoading.set(loading);
+
+    try {
+      const { data, error } = await this.supabase.client.functions.invoke(name);
+
+      const results = { ...this.triggerResults() };
+      if (error) {
+        results[name] = { summary: `Error: ${error.message}`, error: true };
+        this.snackBar.open(`${name} failed: ${error.message}`, 'Close', { duration: 5000 });
+      } else {
+        const msg = data?.message || 'Completed successfully';
+        const upserted = data?.upserted != null ? ` (${data.upserted} upserted)` : '';
+        const analyzed = data?.analyzed != null ? ` (${data.analyzed} analyzed)` : '';
+        const generated = data?.generated != null ? ` (${data.generated} generated)` : '';
+        results[name] = { summary: `${msg}${upserted}${analyzed}${generated}` };
+        this.snackBar.open(`${name} completed`, 'Close', { duration: 3000 });
+      }
+      this.triggerResults.set(results);
+    } catch (err: any) {
+      const results = { ...this.triggerResults() };
+      results[name] = { summary: `Error: ${err.message || 'Unknown error'}`, error: true };
+      this.triggerResults.set(results);
+      this.snackBar.open(`${name} failed`, 'Close', { duration: 5000 });
+    } finally {
+      const loading = new Set(this.triggerLoading());
+      loading.delete(name);
+      this.triggerLoading.set(loading);
     }
   }
 

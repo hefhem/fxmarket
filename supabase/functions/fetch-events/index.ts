@@ -520,16 +520,37 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch from all 5 sources in parallel
-    const [finnhubResult, forexFactoryResult, rssResult, alphaVantageResult, fredResult] = await Promise.all([
-      fetchFinnhubEvents(),
-      fetchForexFactoryEvents(),
-      fetchRSSEvents(),
-      fetchAlphaVantageEvents(),
-      fetchFREDEvents()
-    ]);
+    // Query enabled data sources
+    const { data: sourceSettings } = await supabase
+      .from('data_source_settings')
+      .select('source_name, enabled');
 
-    const results = [finnhubResult, forexFactoryResult, rssResult, alphaVantageResult, fredResult];
+    const enabledSources = new Set<string>();
+    if (sourceSettings && sourceSettings.length > 0) {
+      for (const s of sourceSettings) {
+        if (s.enabled) enabledSources.add(s.source_name);
+      }
+    } else {
+      // Fallback: if table is empty or query fails, enable all sources
+      ['finnhub', 'forexfactory', 'rss', 'alphavantage', 'fred'].forEach(s => enabledSources.add(s));
+    }
+
+    const skippedSources = ['finnhub', 'forexfactory', 'rss', 'alphavantage', 'fred']
+      .filter(s => !enabledSources.has(s));
+
+    if (skippedSources.length > 0) {
+      console.log(`Skipping disabled sources: ${skippedSources.join(', ')}`);
+    }
+
+    // Fetch from enabled sources in parallel
+    const fetchers: Promise<SourceResult>[] = [];
+    if (enabledSources.has('finnhub')) fetchers.push(fetchFinnhubEvents());
+    if (enabledSources.has('forexfactory')) fetchers.push(fetchForexFactoryEvents());
+    if (enabledSources.has('rss')) fetchers.push(fetchRSSEvents());
+    if (enabledSources.has('alphavantage')) fetchers.push(fetchAlphaVantageEvents());
+    if (enabledSources.has('fred')) fetchers.push(fetchFREDEvents());
+
+    const results = await Promise.all(fetchers);
     const allEvents = results.flatMap(r => r.events);
 
     const sourceSummary = results.map(r => ({
@@ -548,8 +569,8 @@ Deno.serve(async (req) => {
       await supabase.from('system_logs').insert({
         level: 'warn',
         source: 'fetch-events',
-        message: `No events fetched from any source. Failed: ${failedSources.map(f => f.source).join(', ')}`,
-        metadata: { sources: sourceSummary }
+        message: `No events fetched from any source. Failed: ${failedSources.map(f => f.source).join(', ')}${skippedSources.length > 0 ? `. Skipped (disabled): ${skippedSources.join(', ')}` : ''}`,
+        metadata: { sources: sourceSummary, skippedSources }
       });
 
       return new Response(JSON.stringify({
@@ -588,8 +609,8 @@ Deno.serve(async (req) => {
     await supabase.from('system_logs').insert({
       level: logLevel,
       source: 'fetch-events',
-      message: `Fetched ${allEvents.length} events (${countsBySource}), upserted ${totalUpserted}${upsertErrors > 0 ? `, ${upsertErrors} batch errors` : ''}${failedSources.length > 0 ? `. Failed sources: ${failedSources.map(f => f.source).join(', ')}` : ''}`,
-      metadata: { sources: sourceSummary, upserted: totalUpserted, upsertErrors }
+      message: `Fetched ${allEvents.length} events (${countsBySource}), upserted ${totalUpserted}${upsertErrors > 0 ? `, ${upsertErrors} batch errors` : ''}${failedSources.length > 0 ? `. Failed sources: ${failedSources.map(f => f.source).join(', ')}` : ''}${skippedSources.length > 0 ? `. Skipped (disabled): ${skippedSources.join(', ')}` : ''}`,
+      metadata: { sources: sourceSummary, upserted: totalUpserted, upsertErrors, skippedSources }
     });
 
     return new Response(JSON.stringify({
