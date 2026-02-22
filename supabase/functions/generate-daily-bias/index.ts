@@ -111,20 +111,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get today's event analyses with their events
-    const startOfDay = `${today}T00:00:00Z`;
-    const endOfDay = `${today}T23:59:59Z`;
+    // Get recently analyzed events (analyses created in last 48h)
+    const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
-    const { data: events } = await supabase
-      .from('economic_events')
-      .select('id, event_name, currency, event_analyses(sentiment, confidence, affected_pairs, reasoning)')
-      .gte('event_datetime', startOfDay)
-      .lte('event_datetime', endOfDay);
+    const { data: analyses } = await supabase
+      .from('event_analyses')
+      .select('id, sentiment, confidence, affected_pairs, reasoning, event_id, economic_events(id, event_name, currency)')
+      .gte('created_at', since);
 
-    const analyzedEvents = (events ?? []).filter((e: any) => e.event_analyses?.length > 0);
+    const analyzedEvents = (analyses ?? [])
+      .filter((a: any) => a.economic_events)
+      .map((a: any) => ({
+        id: a.economic_events.id,
+        event_name: a.economic_events.event_name,
+        currency: a.economic_events.currency,
+        event_analyses: [{ sentiment: a.sentiment, confidence: a.confidence, affected_pairs: a.affected_pairs, reasoning: a.reasoning }]
+      }));
 
     if (analyzedEvents.length === 0) {
-      return new Response(JSON.stringify({ message: 'No analyzed events for today', count: 0 }), {
+      return new Response(JSON.stringify({ message: 'No analyzed events found in last 48h', count: 0 }), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
