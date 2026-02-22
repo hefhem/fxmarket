@@ -9,9 +9,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { EventsService, EventFilters } from '../../../core/services/events.service';
-import { EconomicEvent, G7_PAIRS } from '../../../core/models';
+import { EconomicEvent } from '../../../core/models';
 import { ImpactBadgeComponent } from '../../../shared/components/impact-badge/impact-badge.component';
+import { EventDetailDialogComponent } from '../event-detail/event-detail-dialog.component';
 
 @Component({
   selector: 'app-event-list',
@@ -20,8 +23,8 @@ import { ImpactBadgeComponent } from '../../../shared/components/impact-badge/im
     CommonModule, FormsModule, DatePipe,
     MatTableModule, MatFormFieldModule, MatSelectModule,
     MatInputModule, MatIconModule, MatButtonModule,
-    MatProgressSpinnerModule, MatChipsModule,
-    ImpactBadgeComponent
+    MatProgressSpinnerModule, MatChipsModule, MatDialogModule,
+    MatTooltipModule, ImpactBadgeComponent
   ],
   template: `
     @if (!compact()) {
@@ -94,7 +97,11 @@ import { ImpactBadgeComponent } from '../../../shared/components/impact-badge/im
 
           <ng-container matColumnDef="actual">
             <th mat-header-cell *matHeaderCellDef>Actual</th>
-            <td mat-cell *matCellDef="let event">{{ event.actual || '-' }}</td>
+            <td mat-cell *matCellDef="let event"
+                [class.positive-value]="isPositiveSurprise(event)"
+                [class.negative-value]="isNegativeSurprise(event)">
+              {{ event.actual || '-' }}
+            </td>
           </ng-container>
 
           <ng-container matColumnDef="forecast">
@@ -107,8 +114,16 @@ import { ImpactBadgeComponent } from '../../../shared/components/impact-badge/im
             <td mat-cell *matCellDef="let event">{{ event.previous || '-' }}</td>
           </ng-container>
 
+          <ng-container matColumnDef="analysis">
+            <th mat-header-cell *matHeaderCellDef>AI</th>
+            <td mat-cell *matCellDef="let event">
+              <mat-icon class="ai-icon" matTooltip="Click to view AI analysis">psychology</mat-icon>
+            </td>
+          </ng-container>
+
           <tr mat-header-row *matHeaderRowDef="displayedColumns()"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns();" class="event-row"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns();"
+              class="event-row" (click)="openEventDetail(row)"></tr>
         </table>
       </div>
     }
@@ -143,7 +158,11 @@ import { ImpactBadgeComponent } from '../../../shared/components/impact-badge/im
       font-size: 12px;
       font-weight: 600;
     }
-    .event-row:hover { background: rgba(255, 255, 255, 0.03); }
+    .event-row { cursor: pointer; }
+    .event-row:hover { background: rgba(255, 255, 255, 0.05); }
+    .positive-value { color: #4caf50; font-weight: 600; }
+    .negative-value { color: #f44336; font-weight: 600; }
+    .ai-icon { color: #7c4dff; font-size: 18px; }
   `]
 })
 export class EventListComponent implements OnInit {
@@ -159,13 +178,16 @@ export class EventListComponent implements OnInit {
 
   displayedColumns = signal<string[]>([]);
 
-  constructor(private eventsService: EventsService) {}
+  constructor(
+    private eventsService: EventsService,
+    private dialog: MatDialog
+  ) {}
 
   ngOnInit() {
     if (this.compact()) {
       this.displayedColumns.set(['datetime', 'currency', 'event_name', 'impact']);
     } else {
-      this.displayedColumns.set(['datetime', 'currency', 'event_name', 'impact', 'actual', 'forecast', 'previous']);
+      this.displayedColumns.set(['datetime', 'currency', 'event_name', 'impact', 'actual', 'forecast', 'previous', 'analysis']);
     }
     this.applyFilters();
   }
@@ -185,5 +207,24 @@ export class EventListComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  openEventDetail(event: EconomicEvent) {
+    this.dialog.open(EventDetailDialogComponent, {
+      data: event,
+      width: '600px',
+      maxWidth: '95vw',
+      panelClass: 'event-detail-dialog'
+    });
+  }
+
+  isPositiveSurprise(event: EconomicEvent): boolean {
+    if (!event.actual || !event.forecast) return false;
+    return parseFloat(event.actual) > parseFloat(event.forecast);
+  }
+
+  isNegativeSurprise(event: EconomicEvent): boolean {
+    if (!event.actual || !event.forecast) return false;
+    return parseFloat(event.actual) < parseFloat(event.forecast);
   }
 }

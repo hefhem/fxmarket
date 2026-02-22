@@ -21,9 +21,12 @@ export const routes: Routes = [
         loadChildren: () => import('./features/events/events.routes').then(m => m.EVENTS_ROUTES)
       },
       {
+        path: 'pair-analysis/:pairId',
+        loadComponent: () => import('./features/pair-analysis/pair-analysis.component').then(m => m.PairAnalysisComponent)
+      },
+      {
         path: 'pair-analysis',
-        loadComponent: () => import('./features/placeholder/placeholder.component').then(m => m.PlaceholderComponent),
-        data: { title: 'Pair Analysis', icon: 'analytics', description: 'Deep dive analysis per currency pair - coming in Phase 4' }
+        loadComponent: () => import('./features/pair-analysis/pair-list.component').then(m => m.PairListComponent)
       },
       {
         path: 'watchlist',
