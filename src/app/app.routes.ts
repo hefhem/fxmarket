@@ -47,8 +47,7 @@ export const routes: Routes = [
       },
       {
         path: 'user-guide',
-        loadComponent: () => import('./features/placeholder/placeholder.component').then(m => m.PlaceholderComponent),
-        data: { title: 'User Guide', icon: 'help_outline', description: 'Documentation and help - coming in Phase 4' }
+        loadComponent: () => import('./features/user-guide/user-guide.component').then(m => m.UserGuideComponent)
       },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]

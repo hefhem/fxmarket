@@ -14,6 +14,7 @@ import { CurrencyPairService } from '../../core/services/currency-pair.service';
 import { DailyTradeBias, CurrencyPair } from '../../core/models';
 import { BiasBadgeComponent } from '../../shared/components/bias-badge/bias-badge.component';
 import { ConfidenceMeterComponent } from '../../shared/components/confidence-meter/confidence-meter.component';
+import { MarketHeatmapComponent } from '../../shared/components/market-heatmap/market-heatmap.component';
 import { EventListComponent } from './event-list/event-list.component';
 
 @Component({
@@ -24,7 +25,7 @@ import { EventListComponent } from './event-list/event-list.component';
     MatCardModule, MatIconModule, MatButtonModule,
     MatProgressSpinnerModule, MatChipsModule, MatDividerModule,
     MatTooltipModule,
-    BiasBadgeComponent, ConfidenceMeterComponent, EventListComponent
+    BiasBadgeComponent, ConfidenceMeterComponent, MarketHeatmapComponent, EventListComponent
   ],
   template: `
     <div class="dashboard">
@@ -128,6 +129,13 @@ import { EventListComponent } from './event-list/event-list.component';
           }
         }
       </section>
+
+      <!-- Market Heatmap -->
+      @if (!loading() && allPairs().length > 0) {
+        <section class="heatmap-section">
+          <app-market-heatmap [pairs]="allPairs()" [biasData]="biasData()" />
+        </section>
+      }
 
       <mat-divider></mat-divider>
 
@@ -301,6 +309,7 @@ import { EventListComponent } from './event-list/event-list.component';
 
     .bias-score { text-align: center; margin: 24px 0; }
 
+    .heatmap-section { margin-bottom: 32px; }
     .events-section { margin-top: 32px; }
     .section-header {
       display: flex;
