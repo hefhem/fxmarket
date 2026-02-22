@@ -5,8 +5,8 @@
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
 
 -- 2. Add lock_users permission
-INSERT INTO permissions (name, description)
-VALUES ('lock_users', 'Lock or unlock user accounts')
+INSERT INTO permissions (name, description, resource, action)
+VALUES ('lock_users', 'Lock or unlock user accounts', 'admin', 'write')
 ON CONFLICT (name) DO NOTHING;
 
 -- Grant lock_users to admin role
