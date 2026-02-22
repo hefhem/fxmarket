@@ -11,7 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { EventsService } from '../../core/services/events.service';
 import { CurrencyPairService } from '../../core/services/currency-pair.service';
-import { DailyTradeBias, CurrencyPair } from '../../core/models';
+import { DailyTradeBias, CurrencyPair, CURRENCY_FLAGS } from '../../core/models';
 import { BiasBadgeComponent } from '../../shared/components/bias-badge/bias-badge.component';
 import { ConfidenceMeterComponent } from '../../shared/components/confidence-meter/confidence-meter.component';
 import { MarketHeatmapComponent } from '../../shared/components/market-heatmap/market-heatmap.component';
@@ -344,11 +344,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private biasChannel?: RealtimeChannel;
   private pairMap = new Map<string, CurrencyPair>();
 
-  private readonly flagMap: Record<string, string> = {
-    EUR: '\u{1F1EA}\u{1F1FA}', USD: '\u{1F1FA}\u{1F1F8}', GBP: '\u{1F1EC}\u{1F1E7}',
-    JPY: '\u{1F1EF}\u{1F1F5}', CHF: '\u{1F1E8}\u{1F1ED}', AUD: '\u{1F1E6}\u{1F1FA}',
-    CAD: '\u{1F1E8}\u{1F1E6}', NZD: '\u{1F1F3}\u{1F1FF}'
-  };
+  private readonly flagMap = CURRENCY_FLAGS;
 
   constructor(
     private eventsService: EventsService,

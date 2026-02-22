@@ -23,7 +23,9 @@ import { MatDividerModule } from '@angular/material/divider';
             predictions (bullish/bearish/neutral) with confidence scores for G7 major currency pairs.
           </p>
           <p>
-            The platform covers: <strong>EUR/USD, GBP/USD, USD/JPY, USD/CHF, AUD/USD, USD/CAD, NZD/USD</strong>
+            The platform covers <strong>25 instruments</strong>: 7 G7 majors (EUR/USD, GBP/USD, USD/JPY, USD/CHF, AUD/USD, USD/CAD, NZD/USD),
+            16 crosses (EUR/GBP, EUR/JPY, GBP/JPY, EUR/AUD, GBP/AUD, EUR/CAD, AUD/JPY, CAD/JPY, NZD/JPY, GBP/CAD, AUD/CAD, AUD/NZD, EUR/NZD, GBP/NZD, EUR/CHF, GBP/CHF),
+            and 2 commodities (<strong>XAU/USD</strong> Gold, <strong>XAG/USD</strong> Silver)
           </p>
         </mat-card-content>
       </mat-card>

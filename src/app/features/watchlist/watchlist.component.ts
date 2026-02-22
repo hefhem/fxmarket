@@ -11,7 +11,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { CurrencyPairService } from '../../core/services/currency-pair.service';
 import { EventsService } from '../../core/services/events.service';
-import { Watchlist, CurrencyPair, DailyTradeBias } from '../../core/models';
+import { Watchlist, CurrencyPair, DailyTradeBias, CURRENCY_FLAGS } from '../../core/models';
 import { BiasBadgeComponent } from '../../shared/components/bias-badge/bias-badge.component';
 import { ConfidenceMeterComponent } from '../../shared/components/confidence-meter/confidence-meter.component';
 import { AddPairDialogComponent } from './add-pair-dialog.component';
@@ -170,11 +170,7 @@ export class WatchlistComponent implements OnInit {
   watchlistItems = signal<WatchlistItem[]>([]);
   loading = signal(true);
 
-  private readonly flagMap: Record<string, string> = {
-    EUR: '\u{1F1EA}\u{1F1FA}', USD: '\u{1F1FA}\u{1F1F8}', GBP: '\u{1F1EC}\u{1F1E7}',
-    JPY: '\u{1F1EF}\u{1F1F5}', CHF: '\u{1F1E8}\u{1F1ED}', AUD: '\u{1F1E6}\u{1F1FA}',
-    CAD: '\u{1F1E8}\u{1F1E6}', NZD: '\u{1F1F3}\u{1F1FF}'
-  };
+  private readonly flagMap = CURRENCY_FLAGS;
 
   constructor(
     private watchlistService: WatchlistService,

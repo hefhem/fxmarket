@@ -14,7 +14,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { AuthService } from '../../core/services/auth.service';
 import { PushNotificationService } from '../../core/services/push-notification.service';
-import { G7_PAIRS } from '../../core/models';
+import { ALL_PAIRS } from '../../core/models';
 
 @Component({
   selector: 'app-settings',
@@ -189,7 +189,7 @@ export class SettingsComponent implements OnInit {
   passwordForm: FormGroup;
   saving = signal(false);
   changingPassword = signal(false);
-  allPairs = G7_PAIRS;
+  allPairs = ALL_PAIRS;
 
   timezones = [
     'UTC', 'America/New_York', 'America/Chicago', 'America/Denver',

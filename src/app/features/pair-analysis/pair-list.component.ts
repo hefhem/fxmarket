@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { CurrencyPairService } from '../../core/services/currency-pair.service';
 import { EventsService } from '../../core/services/events.service';
-import { CurrencyPair, DailyTradeBias } from '../../core/models';
+import { CurrencyPair, DailyTradeBias, CURRENCY_FLAGS } from '../../core/models';
 import { BiasBadgeComponent } from '../../shared/components/bias-badge/bias-badge.component';
 import { ConfidenceMeterComponent } from '../../shared/components/confidence-meter/confidence-meter.component';
 
@@ -103,11 +103,7 @@ export class PairListComponent implements OnInit {
   pairsWithBias = signal<PairWithBias[]>([]);
   loading = signal(true);
 
-  private readonly flagMap: Record<string, string> = {
-    EUR: '\u{1F1EA}\u{1F1FA}', USD: '\u{1F1FA}\u{1F1F8}', GBP: '\u{1F1EC}\u{1F1E7}',
-    JPY: '\u{1F1EF}\u{1F1F5}', CHF: '\u{1F1E8}\u{1F1ED}', AUD: '\u{1F1E6}\u{1F1FA}',
-    CAD: '\u{1F1E8}\u{1F1E6}', NZD: '\u{1F1F3}\u{1F1FF}'
-  };
+  private readonly flagMap = CURRENCY_FLAGS;
 
   constructor(
     private pairService: CurrencyPairService,

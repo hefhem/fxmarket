@@ -4,7 +4,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { CurrencyPair } from '../../core/models';
+import { CurrencyPair, CURRENCY_FLAGS } from '../../core/models';
 
 @Component({
   selector: 'app-add-pair-dialog',
@@ -42,11 +42,7 @@ import { CurrencyPair } from '../../core/models';
   `]
 })
 export class AddPairDialogComponent {
-  private readonly flagMap: Record<string, string> = {
-    EUR: '\u{1F1EA}\u{1F1FA}', USD: '\u{1F1FA}\u{1F1F8}', GBP: '\u{1F1EC}\u{1F1E7}',
-    JPY: '\u{1F1EF}\u{1F1F5}', CHF: '\u{1F1E8}\u{1F1ED}', AUD: '\u{1F1E6}\u{1F1FA}',
-    CAD: '\u{1F1E8}\u{1F1E6}', NZD: '\u{1F1F3}\u{1F1FF}'
-  };
+  private readonly flagMap = CURRENCY_FLAGS;
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: { pairs: CurrencyPair[] },
