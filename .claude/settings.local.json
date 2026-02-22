@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(ng version:*)",
+      "Bash(ng new:*)",
+      "Bash(ng add:*)",
+      "Bash(npm install:*)",
+      "Bash(npx ng build:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

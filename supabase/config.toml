@@ -1,0 +1,18 @@
+[project]
+id = "your-project-ref"
+name = "fxmarket"
+
+[api]
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+site_url = "http://localhost:4200"
+additional_redirect_urls = ["http://localhost:4200/auth/callback"]
+jwt_expiry = 3600
+enable_signup = true
