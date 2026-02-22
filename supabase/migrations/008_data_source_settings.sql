@@ -58,9 +58,9 @@ INSERT INTO data_source_settings (source_name, display_name, description, enable
 ON CONFLICT (source_name) DO NOTHING;
 
 -- Add new permissions to admin role
-INSERT INTO permissions (name, description) VALUES
-  ('manage_data_sources', 'Enable or disable data sources'),
-  ('trigger_functions', 'Manually trigger edge functions from admin panel')
+INSERT INTO permissions (name, description, resource, action) VALUES
+  ('manage_data_sources', 'Enable or disable data sources', 'data_sources', 'write'),
+  ('trigger_functions', 'Manually trigger edge functions from admin panel', 'functions', 'execute')
 ON CONFLICT (name) DO NOTHING;
 
 -- Link new permissions to admin role
