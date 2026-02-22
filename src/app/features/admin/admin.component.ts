@@ -34,6 +34,15 @@ interface SystemStats {
   totalBias: number;
 }
 
+interface SourceHealth {
+  source: string;
+  lastSuccess: string | null;
+  lastError: string | null;
+  recentErrors: number;
+  recentSuccesses: number;
+  status: 'healthy' | 'degraded' | 'down';
+}
+
 @Component({
   selector: 'app-admin',
   standalone: true,
@@ -128,6 +137,51 @@ interface SystemStats {
           </div>
         </mat-tab>
 
+        <!-- System Health -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon>monitor_heart</mat-icon>&nbsp;Health
+          </ng-template>
+          <div class="tab-content">
+            @if (healthLoading()) {
+              <div class="loading"><mat-spinner diameter="32"></mat-spinner></div>
+            } @else {
+              <div class="health-grid">
+                @for (src of sourceHealth(); track src.source) {
+                  <mat-card class="health-card" [class]="'health-' + src.status">
+                    <mat-card-content>
+                      <div class="health-header">
+                        <span class="health-source">{{ src.source | uppercase }}</span>
+                        <span class="health-status">{{ src.status }}</span>
+                      </div>
+                      <div class="health-stats">
+                        <div class="health-stat">
+                          <span class="stat-num success">{{ src.recentSuccesses }}</span>
+                          <span class="stat-desc">successes (24h)</span>
+                        </div>
+                        <div class="health-stat">
+                          <span class="stat-num error">{{ src.recentErrors }}</span>
+                          <span class="stat-desc">errors (24h)</span>
+                        </div>
+                      </div>
+                      @if (src.lastSuccess) {
+                        <div class="health-time">Last success: {{ src.lastSuccess | date:'short' }}</div>
+                      }
+                      @if (src.lastError) {
+                        <div class="health-time error">Last error: {{ src.lastError | date:'short' }}</div>
+                      }
+                    </mat-card-content>
+                  </mat-card>
+                }
+              </div>
+              <div class="events-24h">
+                <mat-icon>event_available</mat-icon>
+                <span>Events fetched in last 24h: <strong>{{ events24h() }}</strong></span>
+              </div>
+            }
+          </div>
+        </mat-tab>
+
         <!-- System Logs -->
         <mat-tab>
           <ng-template mat-tab-label>
@@ -213,14 +267,62 @@ interface SystemStats {
     .log-message { flex: 1; }
     .log-time { color: rgba(255,255,255,0.3); font-size: 11px; white-space: nowrap; }
     .userColumns { width: 100%; }
+    .health-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .health-card { border-left: 3px solid transparent; }
+    .health-healthy { border-left-color: #4caf50; }
+    .health-degraded { border-left-color: #ff9800; }
+    .health-down { border-left-color: #f44336; }
+    .health-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .health-source { font-weight: 700; font-size: 14px; }
+    .health-status {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .health-healthy .health-status { background: rgba(76,175,80,0.15); color: #4caf50; }
+    .health-degraded .health-status { background: rgba(255,152,0,0.15); color: #ff9800; }
+    .health-down .health-status { background: rgba(244,67,54,0.15); color: #f44336; }
+    .health-stats { display: flex; gap: 16px; margin-bottom: 8px; }
+    .health-stat { display: flex; flex-direction: column; }
+    .stat-num { font-size: 1.4rem; font-weight: 700; }
+    .stat-num.success { color: #4caf50; }
+    .stat-num.error { color: #f44336; }
+    .stat-desc { font-size: 10px; color: rgba(255,255,255,0.4); }
+    .health-time { font-size: 11px; color: rgba(255,255,255,0.4); }
+    .health-time.error { color: rgba(244,67,54,0.5); }
+    .events-24h {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .events-24h mat-icon { color: #4caf50; }
   `]
 })
 export class AdminComponent implements OnInit {
   users = signal<UserInfo[]>([]);
   logs = signal<SystemLog[]>([]);
   stats = signal<SystemStats>({ totalUsers: 0, totalEvents: 0, totalAnalyses: 0, totalBias: 0 });
+  sourceHealth = signal<SourceHealth[]>([]);
+  events24h = signal(0);
   usersLoading = signal(true);
   logsLoading = signal(true);
+  healthLoading = signal(true);
 
   userColumns = ['email', 'full_name', 'roles', 'created_at', 'actions'];
 
@@ -233,7 +335,8 @@ export class AdminComponent implements OnInit {
     await Promise.all([
       this.loadStats(),
       this.loadUsers(),
-      this.loadLogs()
+      this.loadLogs(),
+      this.loadHealth()
     ]);
   }
 
@@ -281,6 +384,59 @@ export class AdminComponent implements OnInit {
       .limit(100);
     this.logs.set((data ?? []) as SystemLog[]);
     this.logsLoading.set(false);
+  }
+
+  private async loadHealth() {
+    try {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+      // Get recent logs from fetch-events source
+      const { data: recentLogs } = await this.supabase.from('system_logs')
+        .select('level, message, created_at, metadata')
+        .eq('source', 'fetch-events')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false });
+
+      // Count events in last 24h
+      const { count } = await this.supabase.from('economic_events')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', since);
+
+      this.events24h.set(count ?? 0);
+
+      // Parse source health from log messages
+      const sources = ['finnhub', 'jblanked', 'rss'];
+      const health: SourceHealth[] = sources.map(source => {
+        const logs = recentLogs ?? [];
+        const successLogs = logs.filter(l => l.level === 'info' && l.message.includes(source));
+        const errorLogs = logs.filter(l =>
+          (l.level === 'error' || l.level === 'warn') &&
+          (l.message.toLowerCase().includes(source) || l.message.toLowerCase().includes('failed'))
+        );
+
+        const lastSuccess = successLogs.length > 0 ? successLogs[0].created_at : null;
+        const lastError = errorLogs.length > 0 ? errorLogs[0].created_at : null;
+
+        let status: 'healthy' | 'degraded' | 'down' = 'healthy';
+        if (successLogs.length === 0 && errorLogs.length > 0) status = 'down';
+        else if (errorLogs.length > successLogs.length) status = 'degraded';
+
+        return {
+          source,
+          lastSuccess,
+          lastError,
+          recentSuccesses: successLogs.length,
+          recentErrors: errorLogs.length,
+          status
+        };
+      });
+
+      this.sourceHealth.set(health);
+    } catch (err) {
+      console.error('Failed to load health data:', err);
+    } finally {
+      this.healthLoading.set(false);
+    }
   }
 
   async promoteToAdmin(userId: string) {

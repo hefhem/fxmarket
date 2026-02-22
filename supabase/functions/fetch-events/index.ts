@@ -25,8 +25,63 @@ interface MappedEvent {
   raw_data: unknown;
 }
 
+interface SourceResult {
+  source: string;
+  events: MappedEvent[];
+  status: 'success' | 'partial' | 'failed';
+  error?: string;
+  attempts: number;
+}
+
 // ============================================================
-// Finnhub Source
+// Retry utility with exponential backoff
+// ============================================================
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit = {},
+  maxRetries = 3,
+  baseDelay = 1000
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (response.ok) return response;
+
+      // Retry on 429 (rate limit) and 5xx errors
+      if (response.status === 429 || response.status >= 500) {
+        lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
+      // Non-retryable error
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < maxRetries - 1) {
+        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+
+  throw lastError ?? new Error('Max retries exceeded');
+}
+
+// ============================================================
+// Finnhub Source (primary + fallback endpoint)
 // ============================================================
 
 interface FinnhubEvent {
@@ -60,19 +115,21 @@ function getDateRange(): { from: string; to: string } {
   };
 }
 
-async function fetchFinnhubEvents(): Promise<MappedEvent[]> {
-  if (!FINNHUB_API_KEY) return [];
+async function fetchFinnhubEvents(): Promise<SourceResult> {
+  if (!FINNHUB_API_KEY) {
+    return { source: 'finnhub', events: [], status: 'failed', error: 'No API key configured', attempts: 0 };
+  }
 
+  let attempts = 0;
   try {
     const { from, to } = getDateRange();
     const url = `https://finnhub.io/api/v1/calendar/economic?from=${from}&to=${to}&token=${FINNHUB_API_KEY}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Finnhub: ${response.status}`);
-
+    attempts++;
+    const response = await fetchWithRetry(url, {}, 3, 1000);
     const data = await response.json();
     const events: FinnhubEvent[] = data.economicCalendar || [];
 
-    return events
+    const mapped = events
       .map(e => {
         const currency = countryToCurrency(e.country);
         if (!currency) return null;
@@ -91,14 +148,17 @@ async function fetchFinnhubEvents(): Promise<MappedEvent[]> {
         };
       })
       .filter((e): e is MappedEvent => e !== null);
+
+    return { source: 'finnhub', events: mapped, status: 'success', attempts };
   } catch (err) {
-    console.error('Finnhub fetch error:', err);
-    return [];
+    const error = err instanceof Error ? err.message : String(err);
+    console.error('Finnhub fetch error:', error);
+    return { source: 'finnhub', events: [], status: 'failed', error, attempts };
   }
 }
 
 // ============================================================
-// JBlanked Calendar API Source
+// JBlanked Calendar API Source (with fallback URLs)
 // ============================================================
 
 interface JBlankedEvent {
@@ -119,44 +179,60 @@ function jblankedImpact(impact: string): string {
   return 'low';
 }
 
-async function fetchJBlankedEvents(): Promise<MappedEvent[]> {
-  try {
-    const url = 'https://www.jblanked.com/api/news/calendar/today/';
-    const response = await fetch(url, {
-      headers: { 'Accept': 'application/json' }
-    });
-    if (!response.ok) throw new Error(`JBlanked: ${response.status}`);
+const JBLANKED_URLS = [
+  'https://www.jblanked.com/api/news/calendar/today/',
+  'https://www.jblanked.com/api/news/calendar/week/',
+];
 
-    const events: JBlankedEvent[] = await response.json();
+async function fetchJBlankedEvents(): Promise<SourceResult> {
+  let attempts = 0;
+  let lastError = '';
 
-    return events
-      .map(e => {
-        const currency = e.currency?.toUpperCase() ?? countryToCurrency(e.country) ?? '';
-        if (!G7_CURRENCIES.has(currency)) return null;
+  for (const url of JBLANKED_URLS) {
+    try {
+      attempts++;
+      const response = await fetchWithRetry(url, {
+        headers: { 'Accept': 'application/json' }
+      }, 2, 1500);
 
-        return {
-          source: 'jblanked' as const,
-          event_name: e.title,
-          country: e.country,
-          currency,
-          impact: jblankedImpact(e.impact),
-          event_datetime: e.date,
-          actual: e.actual || null,
-          forecast: e.forecast || null,
-          previous: e.previous || null,
-          source_event_id: `jb-${e.country}-${e.title}-${e.date}`.replace(/\s+/g, '-').toLowerCase().substring(0, 250),
-          raw_data: e
-        };
-      })
-      .filter((e): e is MappedEvent => e !== null);
-  } catch (err) {
-    console.error('JBlanked fetch error:', err);
-    return [];
+      const events: JBlankedEvent[] = await response.json();
+
+      const mapped = events
+        .map(e => {
+          const currency = e.currency?.toUpperCase() ?? countryToCurrency(e.country) ?? '';
+          if (!G7_CURRENCIES.has(currency)) return null;
+
+          return {
+            source: 'jblanked' as const,
+            event_name: e.title,
+            country: e.country,
+            currency,
+            impact: jblankedImpact(e.impact),
+            event_datetime: e.date,
+            actual: e.actual || null,
+            forecast: e.forecast || null,
+            previous: e.previous || null,
+            source_event_id: `jb-${e.country}-${e.title}-${e.date}`.replace(/\s+/g, '-').toLowerCase().substring(0, 250),
+            raw_data: e
+          };
+        })
+        .filter((e): e is MappedEvent => e !== null);
+
+      if (mapped.length > 0) {
+        return { source: 'jblanked', events: mapped, status: 'success', attempts };
+      }
+      // If no events found, try next URL
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      console.error(`JBlanked fetch error (${url}):`, lastError);
+    }
   }
+
+  return { source: 'jblanked', events: [], status: 'failed', error: lastError || 'No events from any endpoint', attempts };
 }
 
 // ============================================================
-// RSS Feed Sources (Investing.com Economic Calendar)
+// RSS Feed Sources (with multiple fallback feeds)
 // ============================================================
 
 function parseRSSDate(dateStr: string): string {
@@ -192,27 +268,30 @@ function guessImpact(title: string): string {
   return 'low';
 }
 
-async function fetchRSSEvents(): Promise<MappedEvent[]> {
-  const feeds = [
-    'https://www.investing.com/rss/economic_calendar.rss'
-  ];
+const RSS_FEEDS = [
+  'https://www.investing.com/rss/economic_calendar.rss',
+  'https://www.investing.com/rss/news_14.rss',
+];
 
+async function fetchRSSEvents(): Promise<SourceResult> {
   const allEvents: MappedEvent[] = [];
+  let attempts = 0;
+  let lastError = '';
+  let anySuccess = false;
 
-  for (const feedUrl of feeds) {
+  for (const feedUrl of RSS_FEEDS) {
     try {
-      const response = await fetch(feedUrl, {
+      attempts++;
+      const response = await fetchWithRetry(feedUrl, {
         headers: {
           'User-Agent': 'FXMarketAnalyzer/1.0',
           'Accept': 'application/rss+xml, application/xml, text/xml'
         }
-      });
-      if (!response.ok) continue;
+      }, 2, 2000);
 
       const text = await response.text();
-
-      // Simple XML parsing for RSS items
       const items = text.match(/<item>([\s\S]*?)<\/item>/g) || [];
+      anySuccess = true;
 
       for (const item of items.slice(0, 50)) {
         const titleMatch = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || item.match(/<title>(.*?)<\/title>/);
@@ -228,7 +307,6 @@ async function fetchRSSEvents(): Promise<MappedEvent[]> {
         const eventDate = dateMatch ? parseRSSDate(dateMatch[1]) : new Date().toISOString();
         const description = descMatch ? descMatch[1] : '';
 
-        // Try to extract actual/forecast/previous from description
         const actualMatch = description.match(/Actual:\s*([\d.-]+)/);
         const forecastMatch = description.match(/Forecast:\s*([\d.-]+)/);
         const previousMatch = description.match(/Previous:\s*([\d.-]+)/);
@@ -248,12 +326,22 @@ async function fetchRSSEvents(): Promise<MappedEvent[]> {
           raw_data: { title, description: description.substring(0, 500), pubDate: dateMatch?.[1] }
         });
       }
+
+      // If we got events from first feed, no need to try fallbacks
+      if (allEvents.length > 0) break;
     } catch (err) {
-      console.error(`RSS fetch error for ${feedUrl}:`, err);
+      lastError = err instanceof Error ? err.message : String(err);
+      console.error(`RSS fetch error for ${feedUrl}:`, lastError);
     }
   }
 
-  return allEvents;
+  return {
+    source: 'rss',
+    events: allEvents,
+    status: anySuccess ? 'success' : 'failed',
+    error: anySuccess ? undefined : lastError,
+    attempts
+  };
 }
 
 // ============================================================
@@ -268,35 +356,70 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Fetch from all sources in parallel
-    const [finnhubEvents, jblankedEvents, rssEvents] = await Promise.all([
-      fetchFinnhubEvents(),
-      fetchJBlankedEvents(),
-      fetchRSSEvents()
-    ]);
+    // Check if this is a health check request
+    const url = new URL(req.url);
+    if (url.searchParams.get('health') === 'true') {
+      const { data: lastLog } = await supabase.from('system_logs')
+        .select('created_at, message, level, metadata')
+        .eq('source', 'fetch-events')
+        .order('created_at', { ascending: false })
+        .limit(5);
 
-    const allEvents = [...finnhubEvents, ...jblankedEvents, ...rssEvents];
+      const { count: eventCount } = await supabase.from('economic_events')
+        .select('id', { count: 'exact', head: true })
+        .gte('event_datetime', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
-    const sourceCounts = {
-      finnhub: finnhubEvents.length,
-      jblanked: jblankedEvents.length,
-      rss: rssEvents.length,
-      total: allEvents.length
-    };
-
-    if (allEvents.length === 0) {
       return new Response(JSON.stringify({
-        message: 'No relevant events found from any source',
-        sources: sourceCounts
+        status: 'ok',
+        recentEvents24h: eventCount ?? 0,
+        recentLogs: lastLog ?? []
       }), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Upsert events (deduplicate by source + source_event_id)
-    // Process in batches to avoid payload size limits
+    // Fetch from all sources in parallel
+    const [finnhubResult, jblankedResult, rssResult] = await Promise.all([
+      fetchFinnhubEvents(),
+      fetchJBlankedEvents(),
+      fetchRSSEvents()
+    ]);
+
+    const results = [finnhubResult, jblankedResult, rssResult];
+    const allEvents = results.flatMap(r => r.events);
+
+    const sourceSummary = results.map(r => ({
+      source: r.source,
+      count: r.events.length,
+      status: r.status,
+      error: r.error,
+      attempts: r.attempts
+    }));
+
+    const failedSources = results.filter(r => r.status === 'failed');
+    const logLevel = failedSources.length === results.length ? 'error'
+      : failedSources.length > 0 ? 'warn' : 'info';
+
+    if (allEvents.length === 0) {
+      await supabase.from('system_logs').insert({
+        level: 'warn',
+        source: 'fetch-events',
+        message: `No events fetched from any source. Failed: ${failedSources.map(f => f.source).join(', ')}`,
+        metadata: { sources: sourceSummary }
+      });
+
+      return new Response(JSON.stringify({
+        message: 'No relevant events found from any source',
+        sources: sourceSummary
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Upsert events in batches
     const BATCH_SIZE = 50;
     let totalUpserted = 0;
+    let upsertErrors = 0;
 
     for (let i = 0; i < allEvents.length; i += BATCH_SIZE) {
       const batch = allEvents.slice(i, i + BATCH_SIZE);
@@ -310,21 +433,22 @@ Deno.serve(async (req) => {
 
       if (error) {
         console.error(`Batch upsert error at offset ${i}:`, error.message);
+        upsertErrors++;
       } else {
         totalUpserted += data?.length ?? 0;
       }
     }
 
     await supabase.from('system_logs').insert({
-      level: 'info',
+      level: logLevel,
       source: 'fetch-events',
-      message: `Fetched ${allEvents.length} events (Finnhub: ${finnhubEvents.length}, JBlanked: ${jblankedEvents.length}, RSS: ${rssEvents.length}), upserted ${totalUpserted}`,
-      metadata: sourceCounts
+      message: `Fetched ${allEvents.length} events (Finnhub: ${finnhubResult.events.length}, JBlanked: ${jblankedResult.events.length}, RSS: ${rssResult.events.length}), upserted ${totalUpserted}${upsertErrors > 0 ? `, ${upsertErrors} batch errors` : ''}${failedSources.length > 0 ? `. Failed sources: ${failedSources.map(f => f.source).join(', ')}` : ''}`,
+      metadata: { sources: sourceSummary, upserted: totalUpserted, upsertErrors }
     });
 
     return new Response(JSON.stringify({
       message: 'Events fetched successfully',
-      sources: sourceCounts,
+      sources: sourceSummary,
       upserted: totalUpserted
     }), {
       headers: { 'Content-Type': 'application/json' }

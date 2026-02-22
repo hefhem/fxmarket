@@ -1,0 +1,57 @@
+{
+  "$schema": "./node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.html",
+  "assetGroups": [
+    {
+      "name": "app",
+      "installMode": "prefetch",
+      "resources": {
+        "files": [
+          "/favicon.ico",
+          "/index.html",
+          "/*.css",
+          "/*.js"
+        ]
+      }
+    },
+    {
+      "name": "assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/assets/**",
+          "/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"
+        ]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "api-freshness",
+      "urls": [
+        "https://*.supabase.co/rest/v1/daily_trade_bias*",
+        "https://*.supabase.co/rest/v1/currency_pairs*"
+      ],
+      "cacheConfig": {
+        "maxSize": 20,
+        "maxAge": "1h",
+        "timeout": "10s",
+        "strategy": "freshness"
+      }
+    },
+    {
+      "name": "api-performance",
+      "urls": [
+        "https://*.supabase.co/rest/v1/economic_events*",
+        "https://*.supabase.co/rest/v1/event_analyses*"
+      ],
+      "cacheConfig": {
+        "maxSize": 100,
+        "maxAge": "4h",
+        "timeout": "10s",
+        "strategy": "freshness"
+      }
+    }
+  ]
+}

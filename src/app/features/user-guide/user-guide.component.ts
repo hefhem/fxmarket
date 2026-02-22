@@ -117,6 +117,33 @@ import { MatDividerModule } from '@angular/material/divider';
 
         <mat-expansion-panel>
           <mat-expansion-panel-header>
+            <mat-panel-title><mat-icon>cloud_off</mat-icon> Offline Mode</mat-panel-title>
+          </mat-expansion-panel-header>
+          <p>The app includes offline support via a service worker:</p>
+          <ul>
+            <li><strong>Cached Dashboard</strong> - If you lose internet connection, the app will show the last cached version of the dashboard, bias data, and events.</li>
+            <li><strong>Offline Banner</strong> - A yellow banner appears at the top when you are offline, indicating that cached data is being displayed.</li>
+            <li><strong>Auto Update</strong> - When a new version of the app is deployed, you'll see a notification prompting you to update.</li>
+            <li><strong>Data Freshness</strong> - Bias and pair data is cached for up to 1 hour; event data for up to 4 hours. When online, fresh data is always fetched first.</li>
+          </ul>
+        </mat-expansion-panel>
+
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
+            <mat-panel-title><mat-icon>health_and_safety</mat-icon> Data Resilience</mat-panel-title>
+          </mat-expansion-panel-header>
+          <p>The platform is designed to be resilient to data source failures:</p>
+          <ul>
+            <li><strong>Retry Logic</strong> - All data source fetches include automatic retry with exponential backoff (up to 3 attempts).</li>
+            <li><strong>Fallback Endpoints</strong> - Each data source has backup URLs. If the primary endpoint fails, the system automatically tries alternatives.</li>
+            <li><strong>Partial Success</strong> - If one data source fails, the system continues with events from the remaining sources.</li>
+            <li><strong>Health Monitoring</strong> - Admins can view data source health in the Admin Panel's Health tab, showing success/error rates and last activity.</li>
+            <li><strong>Data Retention</strong> - Events older than 90 days and logs older than 30 days are automatically cleaned up weekly.</li>
+          </ul>
+        </mat-expansion-panel>
+
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
             <mat-panel-title><mat-icon>settings</mat-icon> Settings</mat-panel-title>
           </mat-expansion-panel-header>
           <ul>

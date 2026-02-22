@@ -10,6 +10,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { AuthService } from '../../../core/services/auth.service';
+import { OfflineIndicatorComponent } from '../offline-indicator/offline-indicator.component';
 
 @Component({
   selector: 'app-layout',
@@ -17,7 +18,8 @@ import { AuthService } from '../../../core/services/auth.service';
   imports: [
     CommonModule, RouterModule, RouterOutlet,
     MatToolbarModule, MatSidenavModule, MatListModule,
-    MatIconModule, MatButtonModule, MatMenuModule, MatBadgeModule
+    MatIconModule, MatButtonModule, MatMenuModule, MatBadgeModule,
+    OfflineIndicatorComponent
   ],
   template: `
     <mat-sidenav-container class="app-container">
@@ -63,6 +65,7 @@ import { AuthService } from '../../../core/services/auth.service';
       </mat-sidenav>
 
       <mat-sidenav-content>
+        <app-offline-indicator />
         <mat-toolbar class="app-toolbar" color="primary">
           <button mat-icon-button (click)="sidenav.toggle()" class="menu-btn">
             <mat-icon>menu</mat-icon>
