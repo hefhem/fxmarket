@@ -196,6 +196,7 @@ export class EventListComponent implements OnInit {
     this.loading.set(true);
     try {
       const filters: EventFilters = {};
+      if (this.compact()) filters.limit = 10;
       if (this.selectedCurrency) filters.currency = this.selectedCurrency;
       if (this.selectedImpact) filters.impact = this.selectedImpact;
       if (this.searchText) filters.search = this.searchText;

@@ -8,6 +8,7 @@ export interface EventFilters {
   dateFrom?: string;
   dateTo?: string;
   search?: string;
+  limit?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -28,7 +29,7 @@ export class EventsService {
     let query = this.supabase.from('economic_events')
       .select('*')
       .order('event_datetime', { ascending: false })
-      .limit(100);
+      .limit(filters.limit ?? 100);
 
     if (filters.currency) {
       query = query.eq('currency', filters.currency);
