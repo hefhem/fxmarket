@@ -158,10 +158,10 @@ async function fetchFinnhubEvents(): Promise<SourceResult> {
 }
 
 // ============================================================
-// JBlanked Calendar API Source (with fallback URLs)
+// ForexFactory Calendar Source (via FairEconomy mirror)
 // ============================================================
 
-interface JBlankedEvent {
+interface FFCalendarEvent {
   title: string;
   country: string;
   date: string;
@@ -169,66 +169,70 @@ interface JBlankedEvent {
   forecast?: string;
   previous?: string;
   actual?: string;
-  currency?: string;
 }
 
-function jblankedImpact(impact: string): string {
+function ffImpact(impact: string): string {
   const lower = impact.toLowerCase();
-  if (lower.includes('high') || lower === 'red') return 'high';
-  if (lower.includes('medium') || lower === 'orange') return 'medium';
+  if (lower === 'high' || lower === 'red') return 'high';
+  if (lower === 'medium' || lower === 'orange') return 'medium';
+  if (lower === 'holiday') return 'low';
   return 'low';
 }
 
-const JBLANKED_URLS = [
-  'https://www.jblanked.com/api/news/calendar/today/',
-  'https://www.jblanked.com/api/news/calendar/week/',
+const FF_CALENDAR_URLS = [
+  'https://nfs.faireconomy.media/ff_calendar_thisweek.json',
+  'https://nfs.faireconomy.media/ff_calendar_nextweek.json',
 ];
 
-async function fetchJBlankedEvents(): Promise<SourceResult> {
+async function fetchForexFactoryEvents(): Promise<SourceResult> {
+  const allEvents: MappedEvent[] = [];
   let attempts = 0;
   let lastError = '';
+  let anySuccess = false;
 
-  for (const url of JBLANKED_URLS) {
+  for (const url of FF_CALENDAR_URLS) {
     try {
       attempts++;
       const response = await fetchWithRetry(url, {
         headers: { 'Accept': 'application/json' }
       }, 2, 1500);
 
-      const events: JBlankedEvent[] = await response.json();
+      const events: FFCalendarEvent[] = await response.json();
+      anySuccess = true;
 
-      const mapped = events
-        .map(e => {
-          const currency = e.currency?.toUpperCase() ?? countryToCurrency(e.country) ?? '';
-          if (!G7_CURRENCIES.has(currency)) return null;
+      for (const e of events) {
+        const currency = e.country?.toUpperCase();
+        if (!currency || !G7_CURRENCIES.has(currency)) continue;
+        if (e.impact?.toLowerCase() === 'holiday') continue;
 
-          return {
-            source: 'jblanked' as const,
-            event_name: e.title,
-            country: e.country,
-            currency,
-            impact: jblankedImpact(e.impact),
-            event_datetime: e.date,
-            actual: e.actual || null,
-            forecast: e.forecast || null,
-            previous: e.previous || null,
-            source_event_id: `jb-${e.country}-${e.title}-${e.date}`.replace(/\s+/g, '-').toLowerCase().substring(0, 250),
-            raw_data: e
-          };
-        })
-        .filter((e): e is MappedEvent => e !== null);
-
-      if (mapped.length > 0) {
-        return { source: 'jblanked', events: mapped, status: 'success', attempts };
+        allEvents.push({
+          source: 'forexfactory',
+          event_name: e.title,
+          country: Object.entries({ USD: 'US', EUR: 'EU', GBP: 'GB', JPY: 'JP', CHF: 'CH', AUD: 'AU', CAD: 'CA', NZD: 'NZ' })
+            .find(([k]) => k === currency)?.[1] ?? currency,
+          currency,
+          impact: ffImpact(e.impact),
+          event_datetime: new Date(e.date).toISOString(),
+          actual: e.actual || null,
+          forecast: e.forecast || null,
+          previous: e.previous || null,
+          source_event_id: `ff-${currency}-${e.title}-${e.date}`.replace(/\s+/g, '-').toLowerCase().substring(0, 250),
+          raw_data: e
+        });
       }
-      // If no events found, try next URL
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
-      console.error(`JBlanked fetch error (${url}):`, lastError);
+      console.error(`ForexFactory fetch error (${url}):`, lastError);
     }
   }
 
-  return { source: 'jblanked', events: [], status: 'failed', error: lastError || 'No events from any endpoint', attempts };
+  return {
+    source: 'forexfactory',
+    events: allEvents,
+    status: anySuccess ? 'success' : 'failed',
+    error: anySuccess ? undefined : lastError,
+    attempts
+  };
 }
 
 // ============================================================
@@ -379,13 +383,13 @@ Deno.serve(async (req) => {
     }
 
     // Fetch from all sources in parallel
-    const [finnhubResult, jblankedResult, rssResult] = await Promise.all([
+    const [finnhubResult, forexFactoryResult, rssResult] = await Promise.all([
       fetchFinnhubEvents(),
-      fetchJBlankedEvents(),
+      fetchForexFactoryEvents(),
       fetchRSSEvents()
     ]);
 
-    const results = [finnhubResult, jblankedResult, rssResult];
+    const results = [finnhubResult, forexFactoryResult, rssResult];
     const allEvents = results.flatMap(r => r.events);
 
     const sourceSummary = results.map(r => ({
@@ -442,7 +446,7 @@ Deno.serve(async (req) => {
     await supabase.from('system_logs').insert({
       level: logLevel,
       source: 'fetch-events',
-      message: `Fetched ${allEvents.length} events (Finnhub: ${finnhubResult.events.length}, JBlanked: ${jblankedResult.events.length}, RSS: ${rssResult.events.length}), upserted ${totalUpserted}${upsertErrors > 0 ? `, ${upsertErrors} batch errors` : ''}${failedSources.length > 0 ? `. Failed sources: ${failedSources.map(f => f.source).join(', ')}` : ''}`,
+      message: `Fetched ${allEvents.length} events (Finnhub: ${finnhubResult.events.length}, ForexFactory: ${forexFactoryResult.events.length}, RSS: ${rssResult.events.length}), upserted ${totalUpserted}${upsertErrors > 0 ? `, ${upsertErrors} batch errors` : ''}${failedSources.length > 0 ? `. Failed sources: ${failedSources.map(f => f.source).join(', ')}` : ''}`,
       metadata: { sources: sourceSummary, upserted: totalUpserted, upsertErrors }
     });
 

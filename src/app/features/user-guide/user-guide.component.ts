@@ -51,7 +51,7 @@ import { MatDividerModule } from '@angular/material/divider';
           <p>Browse economic events from three data sources:</p>
           <ul>
             <li><strong>Finnhub</strong> - Economic calendar with actual/forecast/previous values</li>
-            <li><strong>JBlanked</strong> - Aggregated data from Forex Factory, MQL5, FxStreet</li>
+            <li><strong>Forex Factory</strong> - Weekly economic calendar with impact levels, forecasts, and actual data via FairEconomy</li>
             <li><strong>RSS Feeds</strong> - News from Investing.com and central bank sources</li>
           </ul>
           <p><strong>Filters:</strong> Filter by currency (USD, EUR, GBP, etc.), impact level (High/Medium/Low), and search by event name.</p>

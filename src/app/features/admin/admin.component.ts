@@ -405,7 +405,7 @@ export class AdminComponent implements OnInit {
       this.events24h.set(count ?? 0);
 
       // Parse source health from log messages
-      const sources = ['finnhub', 'jblanked', 'rss'];
+      const sources = ['finnhub', 'forexfactory', 'rss'];
       const health: SourceHealth[] = sources.map(source => {
         const logs = recentLogs ?? [];
         const successLogs = logs.filter(l => l.level === 'info' && l.message.includes(source));

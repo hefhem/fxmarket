@@ -1,6 +1,6 @@
 export interface EconomicEvent {
   id: string;
-  source: 'finnhub' | 'jblanked' | 'rss';
+  source: 'finnhub' | 'forexfactory' | 'rss';
   event_name: string;
   country: string;
   currency: string;

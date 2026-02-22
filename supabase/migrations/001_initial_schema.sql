@@ -104,7 +104,7 @@ CREATE TABLE currency_pairs (
 
 CREATE TABLE economic_events (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  source VARCHAR(20) NOT NULL CHECK (source IN ('finnhub', 'jblanked', 'rss')),
+  source VARCHAR(20) NOT NULL CHECK (source IN ('finnhub', 'forexfactory', 'rss')),
   event_name TEXT NOT NULL,
   country VARCHAR(50),
   currency VARCHAR(3) NOT NULL,
