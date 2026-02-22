@@ -15,7 +15,12 @@
       "Bash(git remote:*)",
       "Bash(gh repo create:*)",
       "Bash(where:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mc2ZncGp3b2tpYWNib3hzZm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MjE0NzQsImV4cCI6MjA4NzI5NzQ3NH0.FNVOAybchUMY-bPxaixdi-bM5ia949E-tFGUR1RzjU8\":*)",
+      "Bash(BASE=\"https://mfsfgpjwokiacboxsfol.supabase.co/rest/v1\")",
+      "Bash(__NEW_LINE_9b29289a2458fa56__ echo \"=== ANON ACCESS \\(should all be empty []\\) ===\")"
     ]
   }
 }
