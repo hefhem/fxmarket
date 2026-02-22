@@ -86,7 +86,7 @@ CREATE TABLE currency_pairs (
   base_currency VARCHAR(3) NOT NULL,
   quote_currency VARCHAR(3) NOT NULL,
   symbol VARCHAR(7) NOT NULL UNIQUE,
-  display_name VARCHAR(20) NOT NULL,
+  display_name VARCHAR(100) NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
