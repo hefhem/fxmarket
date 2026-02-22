@@ -193,6 +193,19 @@ Deno.serve(async (req) => {
       metadata: { date: today, pairs: biases.map(b => b.symbol) }
     });
 
+    // Trigger push notifications for strong signals
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        }
+      });
+    } catch (pushErr) {
+      console.error('Failed to trigger push notifications:', pushErr);
+    }
+
     return new Response(JSON.stringify({
       message: 'Daily bias generated',
       date: today,

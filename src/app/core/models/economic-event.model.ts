@@ -26,6 +26,21 @@ export interface EventAnalysis {
   created_at: string;
 }
 
+export type SignalType = 'STRONG BUY' | 'BUY' | 'HOLD' | 'SELL' | 'STRONG SELL';
+
+export interface TradeSignal {
+  pair_id: string;
+  pair_symbol: string;
+  display_name: string;
+  signal: SignalType;
+  bias_score: number;
+  confidence: number;
+  direction: 'bullish' | 'bearish' | 'neutral';
+  ai_reasoning: string;
+  analysis_date: string;
+  updated_at: string;
+}
+
 export interface DailyTradeBias {
   id: string;
   pair_id: string;

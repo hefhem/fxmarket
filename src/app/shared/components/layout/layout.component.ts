@@ -49,6 +49,10 @@ import { OfflineIndicatorComponent } from '../offline-indicator/offline-indicato
             <mat-icon matListItemIcon>notifications</mat-icon>
             <span matListItemTitle>Alerts</span>
           </a>
+          <a mat-list-item routerLink="/signals" routerLinkActive="active" (click)="closeMobileSidenav()">
+            <mat-icon matListItemIcon>candlestick_chart</mat-icon>
+            <span matListItemTitle>Trade Signals</span>
+          </a>
           @if (auth.isAdmin()) {
             <mat-divider></mat-divider>
             <a mat-list-item routerLink="/admin" routerLinkActive="active" (click)="closeMobileSidenav()">

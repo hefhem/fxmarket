@@ -11,7 +11,9 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { AuthService } from '../../core/services/auth.service';
+import { PushNotificationService } from '../../core/services/push-notification.service';
 import { G7_PAIRS } from '../../core/models';
 
 @Component({
@@ -21,7 +23,7 @@ import { G7_PAIRS } from '../../core/models';
     CommonModule, ReactiveFormsModule,
     MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule,
     MatButtonModule, MatIconModule, MatChipsModule, MatDividerModule,
-    MatSnackBarModule, MatProgressSpinnerModule
+    MatSnackBarModule, MatProgressSpinnerModule, MatSlideToggleModule
   ],
   template: `
     <div class="settings-page">
@@ -113,6 +115,47 @@ import { G7_PAIRS } from '../../core/models';
           </form>
         </mat-card-content>
       </mat-card>
+
+      <mat-divider></mat-divider>
+
+      <!-- Push Notifications Section -->
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>notifications_active</mat-icon> Push Notifications
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          @if (!pushService.isSupported()) {
+            <p class="push-status">
+              <mat-icon>info</mat-icon>
+              Push notifications are not supported in this browser or require a production build with service worker enabled.
+            </p>
+          } @else {
+            <p class="push-description">
+              Receive browser push notifications when strong trade signals (STRONG BUY/SELL) are detected.
+            </p>
+            <div class="push-toggle-row">
+              <mat-slide-toggle
+                [checked]="pushService.isSubscribed()"
+                (change)="togglePush($event.checked)"
+                [disabled]="togglingPush()"
+                color="primary">
+                {{ pushService.isSubscribed() ? 'Enabled' : 'Disabled' }}
+              </mat-slide-toggle>
+              @if (togglingPush()) {
+                <mat-spinner diameter="18"></mat-spinner>
+              }
+            </div>
+            @if (pushService.permissionState() === 'denied') {
+              <p class="error-text">
+                <mat-icon>block</mat-icon>
+                Notifications are blocked by your browser. Please allow notifications in your browser settings.
+              </p>
+            }
+          }
+        </mat-card-content>
+      </mat-card>
     </div>
   `,
   styles: [`
@@ -127,7 +170,18 @@ import { G7_PAIRS } from '../../core/models';
     }
     .full-width { width: 100%; }
     mat-divider { margin: 8px 0; }
-    .error-text { color: #f44336; font-size: 12px; margin-bottom: 8px; }
+    .error-text { color: #f44336; font-size: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
+    .error-text mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    .push-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.5);
+      font-size: 13px;
+    }
+    .push-status mat-icon { font-size: 18px; width: 18px; height: 18px; color: #ff9800; }
+    .push-description { color: rgba(255,255,255,0.6); font-size: 13px; margin-bottom: 16px; }
+    .push-toggle-row { display: flex; align-items: center; gap: 12px; }
   `]
 })
 export class SettingsComponent implements OnInit {
@@ -144,8 +198,11 @@ export class SettingsComponent implements OnInit {
     'Pacific/Auckland'
   ];
 
+  togglingPush = signal(false);
+
   constructor(
     public auth: AuthService,
+    public pushService: PushNotificationService,
     private fb: FormBuilder,
     private snackBar: MatSnackBar
   ) {
@@ -204,6 +261,28 @@ export class SettingsComponent implements OnInit {
       this.snackBar.open(err.message || 'Failed to change password', 'Close', { duration: 5000 });
     } finally {
       this.changingPassword.set(false);
+    }
+  }
+
+  async togglePush(enabled: boolean) {
+    this.togglingPush.set(true);
+    try {
+      const success = enabled
+        ? await this.pushService.subscribe()
+        : await this.pushService.unsubscribe();
+
+      if (success) {
+        this.snackBar.open(
+          enabled ? 'Push notifications enabled' : 'Push notifications disabled',
+          'Close', { duration: 3000 }
+        );
+      } else {
+        this.snackBar.open('Failed to update push notifications', 'Close', { duration: 5000 });
+      }
+    } catch (err: any) {
+      this.snackBar.open(err.message || 'Failed to update push notifications', 'Close', { duration: 5000 });
+    } finally {
+      this.togglingPush.set(false);
     }
   }
 }

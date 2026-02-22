@@ -117,6 +117,36 @@ import { MatDividerModule } from '@angular/material/divider';
 
         <mat-expansion-panel>
           <mat-expansion-panel-header>
+            <mat-panel-title><mat-icon>candlestick_chart</mat-icon> Trade Signals</mat-panel-title>
+          </mat-expansion-panel-header>
+          <p>Get clear, actionable trade signals derived from AI bias analysis:</p>
+          <ul>
+            <li><strong>STRONG BUY</strong> - Bias score &gt; 50 with confidence &gt; 70% (bright green)</li>
+            <li><strong>BUY</strong> - Bias score &gt; 20 with confidence &gt; 50% (light green)</li>
+            <li><strong>HOLD</strong> - Bias score near zero or low confidence (gray)</li>
+            <li><strong>SELL</strong> - Bias score &lt; -20 with confidence &gt; 50% (light red)</li>
+            <li><strong>STRONG SELL</strong> - Bias score &lt; -50 with confidence &gt; 70% (bright red)</li>
+          </ul>
+          <p>Each signal card shows the pair, bias score bar, confidence meter, and AI reasoning. Click any card to navigate to the detailed pair analysis page.</p>
+          <p><strong>Summary chips</strong> at the top show a count of each signal type for a quick market overview.</p>
+        </mat-expansion-panel>
+
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
+            <mat-panel-title><mat-icon>notifications_active</mat-icon> Push Notifications</mat-panel-title>
+          </mat-expansion-panel-header>
+          <p>Receive browser push notifications when strong trade signals are detected:</p>
+          <ul>
+            <li><strong>Enable in Settings</strong> - Go to Settings and toggle on Push Notifications</li>
+            <li><strong>Browser Permission</strong> - Your browser will ask for notification permission when you enable</li>
+            <li><strong>Strong Signals Only</strong> - Notifications are only sent for STRONG BUY and STRONG SELL signals</li>
+            <li><strong>Click to View</strong> - Click any push notification to navigate directly to the Trade Signals page</li>
+          </ul>
+          <p><strong>Note:</strong> Push notifications require a production build with service worker enabled. If notifications are blocked, check your browser settings.</p>
+        </mat-expansion-panel>
+
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
             <mat-panel-title><mat-icon>cloud_off</mat-icon> Offline Mode</mat-panel-title>
           </mat-expansion-panel-header>
           <p>The app includes offline support via a service worker:</p>
@@ -151,6 +181,7 @@ import { MatDividerModule } from '@angular/material/divider';
             <li><strong>Timezone</strong> - Set your preferred timezone for event display</li>
             <li><strong>Default Pairs</strong> - Choose which pairs to show by default</li>
             <li><strong>Password</strong> - Change your account password</li>
+            <li><strong>Push Notifications</strong> - Enable/disable browser push notifications for strong signals</li>
           </ul>
         </mat-expansion-panel>
       </mat-accordion>
