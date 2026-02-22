@@ -17,6 +17,7 @@ interface UserInfo {
   full_name: string;
   created_at: string;
   roles: string[];
+  is_active: boolean;
 }
 
 interface SystemLog {
@@ -40,7 +41,7 @@ interface SourceHealth {
   lastError: string | null;
   recentErrors: number;
   recentSuccesses: number;
-  status: 'healthy' | 'degraded' | 'down';
+  status: 'healthy' | 'degraded' | 'down' | 'unknown';
 }
 
 @Component({
@@ -119,9 +120,21 @@ interface SourceHealth {
                   <th mat-header-cell *matHeaderCellDef>Joined</th>
                   <td mat-cell *matCellDef="let u">{{ u.created_at | date:'mediumDate' }}</td>
                 </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Status</th>
+                  <td mat-cell *matCellDef="let u">
+                    <span class="status-chip" [class]="u.is_active ? 'status-active' : 'status-locked'">
+                      {{ u.is_active ? 'Active' : 'Locked' }}
+                    </span>
+                  </td>
+                </ng-container>
                 <ng-container matColumnDef="actions">
                   <th mat-header-cell *matHeaderCellDef>Actions</th>
                   <td mat-cell *matCellDef="let u">
+                    <button mat-button (click)="toggleUserActive(u.id, u.is_active)"
+                      [color]="u.is_active ? 'warn' : 'primary'">
+                      {{ u.is_active ? 'Lock' : 'Unlock' }}
+                    </button>
                     @if (!u.roles.includes('admin')) {
                       <button mat-button (click)="promoteToAdmin(u.id)" color="primary">
                         Make Admin
@@ -152,7 +165,7 @@ interface SourceHealth {
                     <mat-card-content>
                       <div class="health-header">
                         <span class="health-source">{{ src.source | uppercase }}</span>
-                        <span class="health-status">{{ src.status }}</span>
+                        <span class="health-status">{{ src.status === 'unknown' ? 'NO DATA' : src.status }}</span>
                       </div>
                       <div class="health-stats">
                         <div class="health-stat">
@@ -316,6 +329,15 @@ interface SourceHealth {
     }
     .role-admin { background: rgba(244,67,54,0.15); color: #f44336; }
     .role-user { background: rgba(76,175,80,0.15); color: #4caf50; }
+    .status-chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-active { background: rgba(76,175,80,0.15); color: #4caf50; }
+    .status-locked { background: rgba(244,67,54,0.15); color: #f44336; }
     .empty-text { text-align: center; color: rgba(255,255,255,0.4); padding: 32px; }
     .logs-container {
       max-height: 500px;
@@ -354,6 +376,8 @@ interface SourceHealth {
     .health-healthy { border-left-color: #4caf50; }
     .health-degraded { border-left-color: #ff9800; }
     .health-down { border-left-color: #f44336; }
+    .health-unknown { border-left-color: #9e9e9e; }
+    .health-unknown .health-status { background: rgba(158,158,158,0.15); color: #9e9e9e; }
     .health-header {
       display: flex;
       justify-content: space-between;
@@ -429,7 +453,7 @@ export class AdminComponent implements OnInit {
   triggerLoading = signal<Set<string>>(new Set());
   triggerResults = signal<Record<string, { summary: string; error?: boolean }>>({});
 
-  userColumns = ['email', 'full_name', 'roles', 'created_at', 'actions'];
+  userColumns = ['email', 'full_name', 'roles', 'status', 'created_at', 'actions'];
 
   constructor(
     private supabase: SupabaseService,
@@ -462,7 +486,7 @@ export class AdminComponent implements OnInit {
 
   private async loadUsers() {
     const { data: profiles } = await this.supabase.from('profiles')
-      .select('id, email, full_name, created_at')
+      .select('id, email, full_name, created_at, is_active')
       .order('created_at', { ascending: false });
 
     const { data: userRoles } = await this.supabase.from('user_roles')
@@ -513,18 +537,20 @@ export class AdminComponent implements OnInit {
       const sources = ['finnhub', 'forexfactory', 'rss', 'alphavantage', 'fred'];
       const health: SourceHealth[] = sources.map(source => {
         const logs = recentLogs ?? [];
-        const successLogs = logs.filter(l => l.level === 'info' && l.message.includes(source));
+        const successLogs = logs.filter(l => l.level === 'info' && l.message.toLowerCase().includes(source));
         const errorLogs = logs.filter(l =>
           (l.level === 'error' || l.level === 'warn') &&
-          (l.message.toLowerCase().includes(source) || l.message.toLowerCase().includes('failed'))
+          l.message.toLowerCase().includes(source)
         );
 
         const lastSuccess = successLogs.length > 0 ? successLogs[0].created_at : null;
         const lastError = errorLogs.length > 0 ? errorLogs[0].created_at : null;
 
-        let status: 'healthy' | 'degraded' | 'down' = 'healthy';
-        if (successLogs.length === 0 && errorLogs.length > 0) status = 'down';
+        let status: 'healthy' | 'degraded' | 'down' | 'unknown' = 'unknown';
+        if (successLogs.length === 0 && errorLogs.length === 0) status = 'unknown';
+        else if (successLogs.length === 0 && errorLogs.length > 0) status = 'down';
         else if (errorLogs.length > successLogs.length) status = 'degraded';
+        else status = 'healthy';
 
         return {
           source,
@@ -574,6 +600,19 @@ export class AdminComponent implements OnInit {
       const loading = new Set(this.triggerLoading());
       loading.delete(name);
       this.triggerLoading.set(loading);
+    }
+  }
+
+  async toggleUserActive(userId: string, currentState: boolean) {
+    const { error } = await this.supabase.from('profiles')
+      .update({ is_active: !currentState })
+      .eq('id', userId);
+
+    if (error) {
+      this.snackBar.open('Failed to update user status', 'Close', { duration: 3000 });
+    } else {
+      this.snackBar.open(`User ${currentState ? 'locked' : 'unlocked'}`, 'Close', { duration: 3000 });
+      await this.loadUsers();
     }
   }
 

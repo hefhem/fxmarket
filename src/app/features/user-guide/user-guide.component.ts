@@ -189,6 +189,7 @@ import { MatDividerModule } from '@angular/material/divider';
             <li><strong>Data Sources</strong> - View all 5 data sources (Finnhub, Forex Factory, RSS, Alpha Vantage, FRED) and their enabled/disabled status. Admins can toggle sources on or off to control which data feeds are active.</li>
           </ul>
           <p><strong>Admin Actions:</strong> Admins can also manually trigger edge functions (Fetch Events, Analyze Events, Generate Daily Bias) from the Admin Panel's Actions tab, without waiting for the scheduled cron jobs.</p>
+          <p><strong>User Management:</strong> Admins can lock or unlock user accounts from the Admin Panel's Users tab. Locked users have their <code>is_active</code> status set to false, preventing access. Use this to block unauthorized signups or temporarily disable accounts.</p>
         </mat-expansion-panel>
       </mat-accordion>
 
