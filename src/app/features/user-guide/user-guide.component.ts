@@ -50,11 +50,13 @@ import { MatDividerModule } from '@angular/material/divider';
           <mat-expansion-panel-header>
             <mat-panel-title><mat-icon>event</mat-icon> Economic Events</mat-panel-title>
           </mat-expansion-panel-header>
-          <p>Browse economic events from three data sources:</p>
+          <p>Browse economic events from five data sources:</p>
           <ul>
-            <li><strong>Finnhub</strong> - Economic calendar with actual/forecast/previous values</li>
+            <li><strong>Finnhub</strong> - Real-time forex news with AI-extracted currency relevance and impact</li>
             <li><strong>Forex Factory</strong> - Weekly economic calendar with impact levels, forecasts, and actual data via FairEconomy</li>
-            <li><strong>RSS Feeds</strong> - News from Investing.com and central bank sources</li>
+            <li><strong>RSS Feeds</strong> - News from Investing.com, MarketWatch, and Reuters</li>
+            <li><strong>Alpha Vantage</strong> - Macro-economic news sentiment analysis with topic tagging</li>
+            <li><strong>FRED</strong> - Official US Federal Reserve economic data (CPI, GDP, NFP, unemployment, etc.) with actual and previous values</li>
           </ul>
           <p><strong>Filters:</strong> Filter by currency (USD, EUR, GBP, etc.), impact level (High/Medium/Low), and search by event name.</p>
           <p><strong>Calendar View:</strong> Switch to calendar view to see events mapped by date with color-coded impact levels.</p>

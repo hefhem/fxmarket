@@ -1,6 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const FINNHUB_API_KEY = Deno.env.get('FINNHUB_API_KEY') ?? '';
+const ALPHA_VANTAGE_API_KEY = Deno.env.get('ALPHA_VANTAGE_API_KEY') ?? '';
+const FRED_API_KEY = Deno.env.get('FRED_API_KEY') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
@@ -81,38 +83,61 @@ async function fetchWithRetry(
 }
 
 // ============================================================
-// Finnhub Source (primary + fallback endpoint)
+// Shared helpers
 // ============================================================
 
-interface FinnhubEvent {
-  country: string;
-  actual?: number;
-  estimate?: number;
-  event: string;
-  impact: string;
-  prev?: number;
-  time: string;
-  unit: string;
+const CURRENCY_TO_COUNTRY: Record<string, string> = {
+  USD: 'US', EUR: 'EU', GBP: 'GB', JPY: 'JP',
+  CHF: 'CH', AUD: 'AU', CAD: 'CA', NZD: 'NZ'
+};
+
+function extractCurrencyFromTitle(title: string): string | null {
+  const patterns: Record<string, string[]> = {
+    USD: ['U.S.', 'US ', 'United States', 'Fed ', 'FOMC', 'Nonfarm', 'CPI (US)', 'GDP (US)', 'Dollar', 'Treasury'],
+    EUR: ['Euro', 'ECB', 'Eurozone', 'EU ', 'Lagarde'],
+    GBP: ['UK ', 'British', 'BOE', 'Bank of England', 'Sterling', 'Pound'],
+    JPY: ['Japan', 'BOJ', 'Bank of Japan', 'Yen'],
+    CHF: ['Swiss', 'SNB', 'Switzerland', 'Franc'],
+    AUD: ['Australia', 'RBA', 'Reserve Bank of Australia', 'Aussie'],
+    CAD: ['Canada', 'BOC', 'Bank of Canada', 'Loonie'],
+    NZD: ['New Zealand', 'RBNZ', 'Kiwi']
+  };
+  for (const [currency, keywords] of Object.entries(patterns)) {
+    if (keywords.some(kw => title.includes(kw))) return currency;
+  }
+  return null;
 }
 
-function countryToCurrency(country: string): string | null {
-  const map: Record<string, string> = {
-    US: 'USD', EU: 'EUR', GB: 'GBP', JP: 'JPY',
-    CH: 'CHF', AU: 'AUD', CA: 'CAD', NZ: 'NZD'
-  };
-  return map[country] ?? null;
+function guessImpact(title: string): string {
+  const highKeywords = ['Interest Rate', 'GDP', 'CPI', 'Nonfarm', 'NFP', 'Employment', 'Inflation', 'FOMC', 'ECB', 'BOE', 'BOJ', 'Fed ', 'Rate Decision', 'Payroll'];
+  const mediumKeywords = ['PMI', 'Retail Sales', 'Trade Balance', 'Unemployment', 'Consumer Confidence', 'Manufacturing', 'Housing', 'ISM', 'Durable Goods'];
+  if (highKeywords.some(kw => title.includes(kw))) return 'high';
+  if (mediumKeywords.some(kw => title.includes(kw))) return 'medium';
+  return 'low';
 }
 
-function getDateRange(): { from: string; to: string } {
-  const now = new Date();
-  const from = new Date(now);
-  from.setDate(from.getDate() - 1);
-  const to = new Date(now);
-  to.setDate(to.getDate() + 7);
-  return {
-    from: from.toISOString().split('T')[0],
-    to: to.toISOString().split('T')[0]
-  };
+function parseRSSDate(dateStr: string): string {
+  try {
+    return new Date(dateStr).toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+// ============================================================
+// 1. Finnhub Source — Forex News (free endpoint)
+// ============================================================
+
+interface FinnhubNewsItem {
+  id: number;
+  headline: string;
+  summary: string;
+  datetime: number;
+  source: string;
+  url: string;
+  category: string;
+  related?: string;
+  image?: string;
 }
 
 async function fetchFinnhubEvents(): Promise<SourceResult> {
@@ -122,32 +147,30 @@ async function fetchFinnhubEvents(): Promise<SourceResult> {
 
   let attempts = 0;
   try {
-    const { from, to } = getDateRange();
-    const url = `https://finnhub.io/api/v1/calendar/economic?from=${from}&to=${to}&token=${FINNHUB_API_KEY}`;
+    const url = `https://finnhub.io/api/v1/news?category=forex&token=${FINNHUB_API_KEY}`;
     attempts++;
     const response = await fetchWithRetry(url, {}, 3, 1000);
-    const data = await response.json();
-    const events: FinnhubEvent[] = data.economicCalendar || [];
+    const articles: FinnhubNewsItem[] = await response.json();
 
-    const mapped = events
-      .map(e => {
-        const currency = countryToCurrency(e.country);
-        if (!currency) return null;
-        return {
-          source: 'finnhub' as const,
-          event_name: e.event,
-          country: e.country,
-          currency,
-          impact: IMPACT_MAP[e.impact] || 'low',
-          event_datetime: e.time,
-          actual: e.actual != null ? String(e.actual) : null,
-          forecast: e.estimate != null ? String(e.estimate) : null,
-          previous: e.prev != null ? String(e.prev) : null,
-          source_event_id: `${e.country}-${e.event}-${e.time}`.replace(/\s+/g, '-').toLowerCase(),
-          raw_data: e
-        };
-      })
-      .filter((e): e is MappedEvent => e !== null);
+    const mapped: MappedEvent[] = [];
+    for (const article of articles.slice(0, 100)) {
+      const currency = extractCurrencyFromTitle(article.headline);
+      if (!currency) continue;
+
+      mapped.push({
+        source: 'finnhub',
+        event_name: article.headline.substring(0, 200),
+        country: CURRENCY_TO_COUNTRY[currency] ?? 'US',
+        currency,
+        impact: guessImpact(article.headline),
+        event_datetime: new Date(article.datetime * 1000).toISOString(),
+        actual: null,
+        forecast: null,
+        previous: null,
+        source_event_id: `finnhub-news-${article.id}`,
+        raw_data: { headline: article.headline, summary: article.summary?.substring(0, 500), source: article.source, url: article.url }
+      });
+    }
 
     return { source: 'finnhub', events: mapped, status: 'success', attempts };
   } catch (err) {
@@ -158,7 +181,7 @@ async function fetchFinnhubEvents(): Promise<SourceResult> {
 }
 
 // ============================================================
-// ForexFactory Calendar Source (via FairEconomy mirror)
+// 2. ForexFactory Calendar Source (via FairEconomy mirror)
 // ============================================================
 
 interface FFCalendarEvent {
@@ -208,8 +231,7 @@ async function fetchForexFactoryEvents(): Promise<SourceResult> {
         allEvents.push({
           source: 'forexfactory',
           event_name: e.title,
-          country: Object.entries({ USD: 'US', EUR: 'EU', GBP: 'GB', JPY: 'JP', CHF: 'CH', AUD: 'AU', CAD: 'CA', NZD: 'NZ' })
-            .find(([k]) => k === currency)?.[1] ?? currency,
+          country: CURRENCY_TO_COUNTRY[currency] ?? currency,
           currency,
           impact: ffImpact(e.impact),
           event_datetime: new Date(e.date).toISOString(),
@@ -236,45 +258,14 @@ async function fetchForexFactoryEvents(): Promise<SourceResult> {
 }
 
 // ============================================================
-// RSS Feed Sources (with multiple fallback feeds)
+// 3. RSS Feed Sources (with multiple feeds)
 // ============================================================
-
-function parseRSSDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toISOString();
-  } catch {
-    return new Date().toISOString();
-  }
-}
-
-function extractCurrencyFromTitle(title: string): string | null {
-  const patterns: Record<string, string[]> = {
-    USD: ['U.S.', 'US ', 'United States', 'Fed ', 'FOMC', 'Nonfarm', 'CPI (US)', 'GDP (US)'],
-    EUR: ['Euro', 'ECB', 'Eurozone', 'EU '],
-    GBP: ['UK ', 'British', 'BOE', 'Bank of England'],
-    JPY: ['Japan', 'BOJ', 'Bank of Japan'],
-    CHF: ['Swiss', 'SNB', 'Switzerland'],
-    AUD: ['Australia', 'RBA', 'Reserve Bank of Australia'],
-    CAD: ['Canada', 'BOC', 'Bank of Canada'],
-    NZD: ['New Zealand', 'RBNZ']
-  };
-  for (const [currency, keywords] of Object.entries(patterns)) {
-    if (keywords.some(kw => title.includes(kw))) return currency;
-  }
-  return null;
-}
-
-function guessImpact(title: string): string {
-  const highKeywords = ['Interest Rate', 'GDP', 'CPI', 'Nonfarm', 'NFP', 'Employment', 'Inflation', 'FOMC', 'ECB', 'BOE', 'BOJ'];
-  const mediumKeywords = ['PMI', 'Retail Sales', 'Trade Balance', 'Unemployment', 'Consumer Confidence', 'Manufacturing'];
-  if (highKeywords.some(kw => title.includes(kw))) return 'high';
-  if (mediumKeywords.some(kw => title.includes(kw))) return 'medium';
-  return 'low';
-}
 
 const RSS_FEEDS = [
   'https://www.investing.com/rss/economic_calendar.rss',
   'https://www.investing.com/rss/news_14.rss',
+  'https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines',
+  'https://feeds.reuters.com/reuters/businessNews',
 ];
 
 async function fetchRSSEvents(): Promise<SourceResult> {
@@ -318,8 +309,7 @@ async function fetchRSSEvents(): Promise<SourceResult> {
         allEvents.push({
           source: 'rss',
           event_name: title.substring(0, 200),
-          country: Object.entries({ USD: 'US', EUR: 'EU', GBP: 'GB', JPY: 'JP', CHF: 'CH', AUD: 'AU', CAD: 'CA', NZD: 'NZ' })
-            .find(([k]) => k === currency)?.[1] ?? 'US',
+          country: CURRENCY_TO_COUNTRY[currency] ?? 'US',
           currency,
           impact: guessImpact(title),
           event_datetime: eventDate,
@@ -330,9 +320,6 @@ async function fetchRSSEvents(): Promise<SourceResult> {
           raw_data: { title, description: description.substring(0, 500), pubDate: dateMatch?.[1] }
         });
       }
-
-      // If we got events from first feed, no need to try fallbacks
-      if (allEvents.length > 0) break;
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
       console.error(`RSS fetch error for ${feedUrl}:`, lastError);
@@ -344,6 +331,157 @@ async function fetchRSSEvents(): Promise<SourceResult> {
     events: allEvents,
     status: anySuccess ? 'success' : 'failed',
     error: anySuccess ? undefined : lastError,
+    attempts
+  };
+}
+
+// ============================================================
+// 4. Alpha Vantage News Sentiment (free, 25 req/day)
+// ============================================================
+
+interface AVFeedItem {
+  title: string;
+  summary: string;
+  time_published: string;
+  source: string;
+  url: string;
+  topics?: Array<{ topic: string; relevance_score: string }>;
+  ticker_sentiment?: Array<{ ticker: string; relevance_score: string; ticker_sentiment_score: string }>;
+}
+
+async function fetchAlphaVantageEvents(): Promise<SourceResult> {
+  if (!ALPHA_VANTAGE_API_KEY) {
+    return { source: 'alphavantage', events: [], status: 'failed', error: 'No API key configured', attempts: 0 };
+  }
+
+  let attempts = 0;
+  try {
+    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=economy_macro&apikey=${ALPHA_VANTAGE_API_KEY}`;
+    attempts++;
+    const response = await fetchWithRetry(url, {}, 2, 2000);
+    const data = await response.json();
+
+    if (data.Information || data.Note) {
+      // Rate limit or API message
+      return { source: 'alphavantage', events: [], status: 'failed', error: data.Information || data.Note, attempts };
+    }
+
+    const feed: AVFeedItem[] = data.feed || [];
+    const mapped: MappedEvent[] = [];
+
+    for (const article of feed.slice(0, 50)) {
+      const currency = extractCurrencyFromTitle(article.title);
+      if (!currency) continue;
+
+      // Parse time_published format: "20260222T120000"
+      let eventDatetime: string;
+      try {
+        const tp = article.time_published;
+        const isoStr = `${tp.substring(0, 4)}-${tp.substring(4, 6)}-${tp.substring(6, 8)}T${tp.substring(9, 11)}:${tp.substring(11, 13)}:${tp.substring(13, 15)}Z`;
+        eventDatetime = new Date(isoStr).toISOString();
+      } catch {
+        eventDatetime = new Date().toISOString();
+      }
+
+      mapped.push({
+        source: 'alphavantage',
+        event_name: article.title.substring(0, 200),
+        country: CURRENCY_TO_COUNTRY[currency] ?? 'US',
+        currency,
+        impact: guessImpact(article.title),
+        event_datetime: eventDatetime,
+        actual: null,
+        forecast: null,
+        previous: null,
+        source_event_id: `av-${article.time_published}-${article.title}`.replace(/\s+/g, '-').toLowerCase().substring(0, 250),
+        raw_data: {
+          title: article.title,
+          summary: article.summary?.substring(0, 500),
+          source: article.source,
+          url: article.url,
+          topics: article.topics,
+          ticker_sentiment: article.ticker_sentiment
+        }
+      });
+    }
+
+    return { source: 'alphavantage', events: mapped, status: 'success', attempts };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error('Alpha Vantage fetch error:', error);
+    return { source: 'alphavantage', events: [], status: 'failed', error, attempts };
+  }
+}
+
+// ============================================================
+// 5. FRED — Federal Reserve Economic Data (free, official)
+// ============================================================
+
+// Key FRED series for forex-relevant US economic indicators
+const FRED_SERIES: Record<string, { name: string; impact: string }> = {
+  UNRATE:    { name: 'US Unemployment Rate', impact: 'high' },
+  PAYEMS:    { name: 'US Nonfarm Payrolls', impact: 'high' },
+  CPIAUCSL:  { name: 'US Consumer Price Index (CPI)', impact: 'high' },
+  GDP:       { name: 'US Gross Domestic Product (GDP)', impact: 'high' },
+  FEDFUNDS:  { name: 'Federal Funds Rate', impact: 'high' },
+  RSAFS:     { name: 'US Retail Sales', impact: 'medium' },
+  INDPRO:    { name: 'US Industrial Production', impact: 'medium' },
+  HOUST:     { name: 'US Housing Starts', impact: 'medium' },
+  UMCSENT:   { name: 'US Consumer Sentiment', impact: 'medium' },
+  DEXUSEU:   { name: 'USD/EUR Exchange Rate', impact: 'low' },
+};
+
+async function fetchFREDEvents(): Promise<SourceResult> {
+  if (!FRED_API_KEY) {
+    return { source: 'fred', events: [], status: 'failed', error: 'No API key configured', attempts: 0 };
+  }
+
+  let attempts = 0;
+  const allEvents: MappedEvent[] = [];
+  let anySuccess = false;
+  let lastError = '';
+
+  for (const [seriesId, meta] of Object.entries(FRED_SERIES)) {
+    try {
+      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
+      attempts++;
+      const response = await fetchWithRetry(url, {}, 2, 1500);
+      const data = await response.json();
+
+      const observations = data.observations || [];
+      if (observations.length === 0) continue;
+      anySuccess = true;
+
+      const latest = observations[0];
+      const prev = observations.length > 1 ? observations[1] : null;
+
+      // Skip if the latest observation value is "."  (FRED uses "." for pending data)
+      if (latest.value === '.') continue;
+
+      allEvents.push({
+        source: 'fred',
+        event_name: meta.name,
+        country: 'US',
+        currency: 'USD',
+        impact: meta.impact,
+        event_datetime: new Date(latest.date).toISOString(),
+        actual: latest.value !== '.' ? latest.value : null,
+        forecast: null,
+        previous: prev && prev.value !== '.' ? prev.value : null,
+        source_event_id: `fred-${seriesId}-${latest.date}`,
+        raw_data: { series_id: seriesId, observations: observations.slice(0, 2) }
+      });
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      console.error(`FRED fetch error for ${seriesId}:`, lastError);
+    }
+  }
+
+  return {
+    source: 'fred',
+    events: allEvents,
+    status: anySuccess ? 'success' : allEvents.length === 0 && lastError ? 'failed' : 'success',
+    error: anySuccess ? undefined : lastError || undefined,
     attempts
   };
 }
@@ -382,14 +520,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch from all sources in parallel
-    const [finnhubResult, forexFactoryResult, rssResult] = await Promise.all([
+    // Fetch from all 5 sources in parallel
+    const [finnhubResult, forexFactoryResult, rssResult, alphaVantageResult, fredResult] = await Promise.all([
       fetchFinnhubEvents(),
       fetchForexFactoryEvents(),
-      fetchRSSEvents()
+      fetchRSSEvents(),
+      fetchAlphaVantageEvents(),
+      fetchFREDEvents()
     ]);
 
-    const results = [finnhubResult, forexFactoryResult, rssResult];
+    const results = [finnhubResult, forexFactoryResult, rssResult, alphaVantageResult, fredResult];
     const allEvents = results.flatMap(r => r.events);
 
     const sourceSummary = results.map(r => ({
@@ -443,10 +583,12 @@ Deno.serve(async (req) => {
       }
     }
 
+    const countsBySource = results.map(r => `${r.source}: ${r.events.length}`).join(', ');
+
     await supabase.from('system_logs').insert({
       level: logLevel,
       source: 'fetch-events',
-      message: `Fetched ${allEvents.length} events (Finnhub: ${finnhubResult.events.length}, ForexFactory: ${forexFactoryResult.events.length}, RSS: ${rssResult.events.length}), upserted ${totalUpserted}${upsertErrors > 0 ? `, ${upsertErrors} batch errors` : ''}${failedSources.length > 0 ? `. Failed sources: ${failedSources.map(f => f.source).join(', ')}` : ''}`,
+      message: `Fetched ${allEvents.length} events (${countsBySource}), upserted ${totalUpserted}${upsertErrors > 0 ? `, ${upsertErrors} batch errors` : ''}${failedSources.length > 0 ? `. Failed sources: ${failedSources.map(f => f.source).join(', ')}` : ''}`,
       metadata: { sources: sourceSummary, upserted: totalUpserted, upsertErrors }
     });
 
