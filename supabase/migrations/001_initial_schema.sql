@@ -58,16 +58,23 @@ CREATE TABLE profiles (
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO profiles (id, email, full_name)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', '')
-  );
+  BEGIN
+    INSERT INTO public.profiles (id, email, full_name)
+    VALUES (
+      NEW.id,
+      NEW.email,
+      COALESCE(NEW.raw_user_meta_data->>'full_name', '')
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE LOG 'Profile insert failed: %', SQLERRM;
+  END;
 
-  -- Assign default 'user' role
-  INSERT INTO user_roles (user_id, role_id)
-  SELECT NEW.id, id FROM roles WHERE name = 'user';
+  BEGIN
+    INSERT INTO public.user_roles (user_id, role_id)
+    SELECT NEW.id, id FROM public.roles WHERE name = 'user';
+  EXCEPTION WHEN OTHERS THEN
+    RAISE LOG 'Role insert failed: %', SQLERRM;
+  END;
 
   RETURN NEW;
 END;
