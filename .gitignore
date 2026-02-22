@@ -41,8 +41,7 @@ testem.log
 .DS_Store
 Thumbs.db
 
-# Environment (keep template, ignore actual keys)
-src/environments/environment.prod.ts
+# Environment (supabase anon key is public/safe to commit)
 
 # Supabase local
 .supabase/
