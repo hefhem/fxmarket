@@ -268,6 +268,48 @@ interface SourceHealth {
                   }
                 </mat-card-content>
               </mat-card>
+              <mat-card class="action-card">
+                <mat-card-content>
+                  <mat-icon>candlestick_chart</mat-icon>
+                  <h3>Fetch Price Data</h3>
+                  <p>Fetch OHLCV candles for all active pairs (Finnhub / TwelveData)</p>
+                  <button mat-raised-button color="primary"
+                    (click)="triggerFunction('fetch-price-data')"
+                    [disabled]="triggerLoading().has('fetch-price-data')">
+                    @if (triggerLoading().has('fetch-price-data')) {
+                      <mat-spinner diameter="18"></mat-spinner>
+                    } @else {
+                      Run
+                    }
+                  </button>
+                  @if (triggerResults()['fetch-price-data']; as result) {
+                    <div class="trigger-result" [class.success]="!result.error" [class.error]="result.error">
+                      {{ result.summary }}
+                    </div>
+                  }
+                </mat-card-content>
+              </mat-card>
+              <mat-card class="action-card">
+                <mat-card-content>
+                  <mat-icon>analytics</mat-icon>
+                  <h3>Compute Indicators</h3>
+                  <p>Compute RSI, MACD, SMA, EMA, ATR, support/resistance for all pairs</p>
+                  <button mat-raised-button color="primary"
+                    (click)="triggerFunction('compute-indicators')"
+                    [disabled]="triggerLoading().has('compute-indicators')">
+                    @if (triggerLoading().has('compute-indicators')) {
+                      <mat-spinner diameter="18"></mat-spinner>
+                    } @else {
+                      Run
+                    }
+                  </button>
+                  @if (triggerResults()['compute-indicators']; as result) {
+                    <div class="trigger-result" [class.success]="!result.error" [class.error]="result.error">
+                      {{ result.summary }}
+                    </div>
+                  }
+                </mat-card-content>
+              </mat-card>
             </div>
           </div>
         </mat-tab>

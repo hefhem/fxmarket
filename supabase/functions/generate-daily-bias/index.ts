@@ -13,6 +13,18 @@ interface PairAnalysis {
     confidence: number;
     reasoning: string;
   }>;
+  technical?: {
+    current_price: number;
+    rsi_14: number | null;
+    macd_status: string;
+    sma_20: number | null;
+    sma_50: number | null;
+    sma_200: number | null;
+    support: number | null;
+    resistance: number | null;
+    ta_score: number;
+    ta_signal: string;
+  };
 }
 
 interface BiasResult {
@@ -30,21 +42,43 @@ async function generateBiasWithClaude(pairAnalyses: PairAnalysis[]): Promise<Bia
     const events = pa.analyses.map((a, i) =>
       `  ${i + 1}. "${a.event_name}" - ${a.sentiment} (confidence: ${a.confidence}) - ${a.reasoning}`
     ).join('\n');
-    return `\n${pa.symbol}:\n${events}`;
+
+    let taSection = '';
+    if (pa.technical) {
+      const t = pa.technical;
+      const priceVsSma20 = t.sma_20 ? (t.current_price > t.sma_20 ? 'above' : 'below') : 'N/A';
+      const priceVsSma50 = t.sma_50 ? (t.current_price > t.sma_50 ? 'above' : 'below') : 'N/A';
+      const priceVsSma200 = t.sma_200 ? (t.current_price > t.sma_200 ? 'above' : 'below') : 'N/A';
+      taSection = `\n  Technical Analysis:
+  - Current Price: ${t.current_price.toFixed(5)} | RSI(14): ${t.rsi_14?.toFixed(1) ?? 'N/A'} | MACD: ${t.macd_status}
+  - SMA-20: ${t.sma_20?.toFixed(5) ?? 'N/A'} (${priceVsSma20}) | SMA-50: ${t.sma_50?.toFixed(5) ?? 'N/A'} (${priceVsSma50}) | SMA-200: ${t.sma_200?.toFixed(5) ?? 'N/A'} (${priceVsSma200})
+  - Support: ${t.support?.toFixed(5) ?? 'N/A'} | Resistance: ${t.resistance?.toFixed(5) ?? 'N/A'}
+  - TA Score: ${t.ta_score > 0 ? '+' : ''}${t.ta_score.toFixed(2)} (${t.ta_signal.replace('_', ' ').toUpperCase()})`;
+    }
+
+    return `\n${pa.symbol}:\n${events}${taSection}`;
   }).join('\n');
 
-  const prompt = `You are a senior forex analyst. Based on today's analyzed economic events, generate a daily trade bias for each currency pair.
+  const hasTechnical = pairAnalyses.some(pa => pa.technical);
+  const taInstructions = hasTechnical
+    ? `\n- IMPORTANT: Also consider the technical analysis data provided for each pair
+- When technicals and fundamentals agree, increase confidence
+- When they conflict, reduce confidence and explain the divergence
+- Weight fundamentals at 60% and technicals at 40% in your bias_score`
+    : '';
+
+  const prompt = `You are a senior forex analyst. Based on today's analyzed economic events${hasTechnical ? ' and technical analysis data' : ''}, generate a daily trade bias for each currency pair.
 
 For each pair, consider:
 - Weight high-confidence analyses more heavily
 - Consider the net effect of multiple events on a pair
-- A pair like EUR/USD: bullish EUR events push the pair up, bullish USD events push it down
+- A pair like EUR/USD: bullish EUR events push the pair up, bullish USD events push it down${taInstructions}
 
 Provide for each pair:
 - bias_score: -1.0 (strongly bearish) to +1.0 (strongly bullish), with 0 being neutral
 - direction: "bullish" (score > 0.1), "bearish" (score < -0.1), or "neutral"
 - confidence: 0.0 to 1.0
-- reasoning: 2-3 sentence summary of the directional bias
+- reasoning: 2-3 sentence summary of the directional bias${hasTechnical ? ' incorporating both fundamental and technical factors' : ''}
 
 Today's event analyses by pair:
 ${description}
@@ -174,19 +208,87 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Fetch latest technical indicators for all active pairs
+    const taMap = new Map<string, any>();
+    try {
+      const { data: indicators } = await supabase
+        .from('technical_indicators')
+        .select('pair_id, rsi_14, macd_line, macd_signal, macd_histogram, sma_20, sma_50, sma_200, support_level, resistance_level, ta_score, ta_signal')
+        .order('indicator_date', { ascending: false });
+
+      // Get latest per pair
+      if (indicators) {
+        for (const ind of indicators) {
+          if (!taMap.has(ind.pair_id)) {
+            taMap.set(ind.pair_id, ind);
+          }
+        }
+      }
+
+      // Get latest candle close price for each pair
+      const { data: latestCandles } = await supabase
+        .from('price_candles')
+        .select('pair_id, close')
+        .eq('timeframe', 'D')
+        .order('open_time', { ascending: false });
+
+      const priceMap = new Map<string, number>();
+      if (latestCandles) {
+        for (const c of latestCandles) {
+          if (!priceMap.has(c.pair_id)) {
+            priceMap.set(c.pair_id, c.close);
+          }
+        }
+      }
+
+      // Attach TA data to pair analyses
+      for (const pa of pairAnalyses) {
+        const ind = taMap.get(pa.pair_id);
+        const price = priceMap.get(pa.pair_id);
+        if (ind && price) {
+          const macdStatus = ind.macd_histogram > 0 ? 'bullish'
+            : ind.macd_histogram < 0 ? 'bearish' : 'neutral';
+          pa.technical = {
+            current_price: price,
+            rsi_14: ind.rsi_14,
+            macd_status: ind.macd_line > ind.macd_signal ? 'bullish cross' : 'bearish cross',
+            sma_20: ind.sma_20,
+            sma_50: ind.sma_50,
+            sma_200: ind.sma_200,
+            support: ind.support_level,
+            resistance: ind.resistance_level,
+            ta_score: ind.ta_score,
+            ta_signal: ind.ta_signal,
+          };
+        }
+      }
+    } catch (taErr) {
+      console.warn('Failed to fetch TA data (proceeding without):', taErr);
+    }
+
     // Generate bias with Claude
     const biases = await generateBiasWithClaude(pairAnalyses);
 
-    // Upsert daily bias
-    const toUpsert = biases.map(b => ({
-      pair_id: b.pair_id,
-      analysis_date: today,
-      bias_score: b.bias_score,
-      direction: b.direction,
-      confidence: b.confidence,
-      contributing_events: b.contributing_event_ids,
-      ai_reasoning: b.reasoning
-    }));
+    // Upsert daily bias with TA score and combined score
+    const toUpsert = biases.map(b => {
+      const ta = taMap.get(b.pair_id);
+      const taScore = ta?.ta_score ?? null;
+      const combinedScore = taScore !== null
+        ? Math.max(-1, Math.min(1, b.bias_score * 0.6 + taScore * 0.4))
+        : null;
+
+      return {
+        pair_id: b.pair_id,
+        analysis_date: today,
+        bias_score: b.bias_score,
+        direction: b.direction,
+        confidence: b.confidence,
+        contributing_events: b.contributing_event_ids,
+        ai_reasoning: b.reasoning,
+        ta_score: taScore,
+        combined_score: combinedScore !== null ? Math.round(combinedScore * 100) / 100 : null,
+      };
+    });
 
     const { error: upsertError } = await supabase
       .from('daily_trade_bias')

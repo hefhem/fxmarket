@@ -39,6 +39,8 @@ export interface TradeSignal {
   ai_reasoning: string;
   analysis_date: string;
   updated_at: string;
+  ta_score?: number | null;
+  combined_score?: number | null;
 }
 
 export interface DailyTradeBias {
@@ -51,6 +53,8 @@ export interface DailyTradeBias {
   confidence: number;
   contributing_events: string[];
   ai_reasoning: string;
+  ta_score?: number | null;
+  combined_score?: number | null;
   created_at: string;
   updated_at: string;
 }

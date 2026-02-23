@@ -9,7 +9,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SignalsService } from '../../core/services/signals.service';
 import { ConfidenceMeterComponent } from '../../shared/components/confidence-meter/confidence-meter.component';
-import { SignalType } from '../../core/models';
+import { SignalType, TradeSignal } from '../../core/models';
 
 @Component({
   selector: 'app-trade-signals',
@@ -93,23 +93,69 @@ import { SignalType } from '../../core/models';
                   <span class="pair-name">{{ sig.display_name }}</span>
                 </div>
 
-                <!-- Bias Score Bar -->
-                <div class="score-section">
-                  <div class="score-header">
-                    <span class="score-label">Bias Score</span>
-                    <span class="score-value" [class]="sig.direction">
+                <!-- Score Bars -->
+                <div class="scores-section">
+                  <div class="score-row">
+                    <span class="score-label">Fundamental</span>
+                    <div class="score-bar-wrapper">
+                      <div class="bias-bar-track">
+                        <div class="bias-bar-center"></div>
+                        <div class="bias-bar-fill"
+                             [style.width.%]="getBarWidth(sig.bias_score)"
+                             [style.left.%]="getBarLeft(sig.bias_score)"
+                             [class]="sig.direction">
+                        </div>
+                      </div>
+                    </div>
+                    <span class="score-num" [class]="sig.direction">
                       {{ sig.bias_score > 0 ? '+' : '' }}{{ (sig.bias_score * 100).toFixed(0) }}
                     </span>
                   </div>
-                  <div class="bias-bar-track">
-                    <div class="bias-bar-center"></div>
-                    <div class="bias-bar-fill"
-                         [style.width.%]="getBarWidth(sig.bias_score)"
-                         [style.left.%]="getBarLeft(sig.bias_score)"
-                         [class]="sig.direction">
+                  @if (sig.ta_score != null) {
+                    <div class="score-row">
+                      <span class="score-label">Technical</span>
+                      <div class="score-bar-wrapper">
+                        <div class="bias-bar-track">
+                          <div class="bias-bar-center"></div>
+                          <div class="bias-bar-fill"
+                               [style.width.%]="getBarWidth(sig.ta_score!)"
+                               [style.left.%]="getBarLeft(sig.ta_score!)"
+                               [class]="sig.ta_score! > 0.1 ? 'bullish' : sig.ta_score! < -0.1 ? 'bearish' : 'neutral'">
+                          </div>
+                        </div>
+                      </div>
+                      <span class="score-num" [class]="sig.ta_score! > 0.1 ? 'bullish' : sig.ta_score! < -0.1 ? 'bearish' : 'neutral'">
+                        {{ sig.ta_score! > 0 ? '+' : '' }}{{ (sig.ta_score! * 100).toFixed(0) }}
+                      </span>
                     </div>
-                  </div>
+                  }
+                  @if (sig.combined_score != null) {
+                    <div class="score-row combined-row">
+                      <span class="score-label">Combined</span>
+                      <div class="score-bar-wrapper">
+                        <div class="bias-bar-track">
+                          <div class="bias-bar-center"></div>
+                          <div class="bias-bar-fill"
+                               [style.width.%]="getBarWidth(sig.combined_score!)"
+                               [style.left.%]="getBarLeft(sig.combined_score!)"
+                               [class]="sig.combined_score! > 0.1 ? 'bullish' : sig.combined_score! < -0.1 ? 'bearish' : 'neutral'">
+                          </div>
+                        </div>
+                      </div>
+                      <span class="score-num" [class]="sig.combined_score! > 0.1 ? 'bullish' : sig.combined_score! < -0.1 ? 'bearish' : 'neutral'">
+                        {{ sig.combined_score! > 0 ? '+' : '' }}{{ (sig.combined_score! * 100).toFixed(0) }}
+                      </span>
+                    </div>
+                  }
                 </div>
+
+                <!-- Agreement Indicator -->
+                @if (sig.ta_score != null) {
+                  <div class="agreement-row" [class]="getAgreementClass(sig)">
+                    <mat-icon>{{ getAgreementIcon(sig) }}</mat-icon>
+                    <span>{{ getAgreementText(sig) }}</span>
+                  </div>
+                }
 
                 <!-- Confidence -->
                 <div class="confidence-row">
@@ -237,18 +283,31 @@ import { SignalType } from '../../core/models';
     .pair-symbol { font-size: 1.3rem; font-weight: 600; }
     .pair-name { font-size: 12px; color: rgba(255,255,255,0.4); }
 
-    .score-section { margin-bottom: 12px; }
-    .score-header {
+    .scores-section { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
+    .score-row {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 6px;
+      gap: 8px;
     }
-    .score-label { font-size: 11px; color: rgba(255,255,255,0.4); }
-    .score-value { font-size: 1.2rem; font-weight: 700; }
-    .score-value.bullish { color: #4caf50; }
-    .score-value.bearish { color: #f44336; }
-    .score-value.neutral { color: #9e9e9e; }
+    .score-label { font-size: 11px; color: rgba(255,255,255,0.4); min-width: 76px; }
+    .score-bar-wrapper { flex: 1; }
+    .score-num { font-size: 13px; font-weight: 700; min-width: 32px; text-align: right; }
+    .score-num.bullish { color: #4caf50; }
+    .score-num.bearish { color: #f44336; }
+    .score-num.neutral { color: #9e9e9e; }
+    .combined-row { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px; }
+    .agreement-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    .agreement-row mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    .agreement-agree { background: rgba(76,175,80,0.1); color: #4caf50; }
+    .agreement-conflict { background: rgba(255,152,0,0.1); color: #ff9800; }
 
     .bias-bar-track {
       position: relative;
@@ -373,5 +432,28 @@ export class TradeSignalsComponent implements OnInit, OnDestroy {
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  getAgreementClass(sig: TradeSignal): string {
+    if (sig.ta_score == null) return '';
+    const fundamentalDir = sig.bias_score > 0.1 ? 1 : sig.bias_score < -0.1 ? -1 : 0;
+    const taDir = sig.ta_score > 0.1 ? 1 : sig.ta_score < -0.1 ? -1 : 0;
+    return fundamentalDir === taDir ? 'agreement-agree' : 'agreement-conflict';
+  }
+
+  getAgreementIcon(sig: TradeSignal): string {
+    if (sig.ta_score == null) return '';
+    const fundamentalDir = sig.bias_score > 0.1 ? 1 : sig.bias_score < -0.1 ? -1 : 0;
+    const taDir = sig.ta_score > 0.1 ? 1 : sig.ta_score < -0.1 ? -1 : 0;
+    return fundamentalDir === taDir ? 'check_circle' : 'warning';
+  }
+
+  getAgreementText(sig: TradeSignal): string {
+    if (sig.ta_score == null) return '';
+    const fundamentalDir = sig.bias_score > 0.1 ? 1 : sig.bias_score < -0.1 ? -1 : 0;
+    const taDir = sig.ta_score > 0.1 ? 1 : sig.ta_score < -0.1 ? -1 : 0;
+    return fundamentalDir === taDir
+      ? 'Fundamentals & Technicals agree'
+      : 'Fundamentals & Technicals diverge';
   }
 }

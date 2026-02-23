@@ -49,18 +49,24 @@ export class SignalsService {
 
       if (error) throw error;
 
-      const signals: TradeSignal[] = (data ?? []).map((row: any) => ({
-        pair_id: row.pair_id,
-        pair_symbol: row.currency_pairs?.symbol ?? row.pair_symbol ?? '',
-        display_name: row.currency_pairs?.display_name ?? '',
-        signal: deriveSignal(row.bias_score, row.confidence),
-        bias_score: row.bias_score,
-        confidence: row.confidence,
-        direction: row.direction,
-        ai_reasoning: row.ai_reasoning,
-        analysis_date: row.analysis_date,
-        updated_at: row.updated_at,
-      }));
+      const signals: TradeSignal[] = (data ?? []).map((row: any) => {
+        // Use combined_score when available for signal derivation
+        const effectiveScore = row.combined_score ?? row.bias_score;
+        return {
+          pair_id: row.pair_id,
+          pair_symbol: row.currency_pairs?.symbol ?? row.pair_symbol ?? '',
+          display_name: row.currency_pairs?.display_name ?? '',
+          signal: deriveSignal(effectiveScore, row.confidence),
+          bias_score: row.bias_score,
+          confidence: row.confidence,
+          direction: row.direction,
+          ai_reasoning: row.ai_reasoning,
+          analysis_date: row.analysis_date,
+          updated_at: row.updated_at,
+          ta_score: row.ta_score ?? null,
+          combined_score: row.combined_score ?? null,
+        };
+      });
 
       this.signalsSignal.set(signals);
       return signals;

@@ -137,6 +137,42 @@ import { MatDividerModule } from '@angular/material/divider';
 
         <mat-expansion-panel>
           <mat-expansion-panel-header>
+            <mat-panel-title><mat-icon>show_chart</mat-icon> Technical Analysis</mat-panel-title>
+          </mat-expansion-panel-header>
+          <p>The platform includes comprehensive technical analysis alongside fundamental analysis:</p>
+          <ul>
+            <li><strong>Price Charts</strong> - Interactive candlestick charts powered by TradingView's Lightweight Charts library. View daily OHLCV (Open, High, Low, Close, Volume) data with SMA overlays.</li>
+            <li><strong>Moving Averages</strong> - Three simple moving average lines on the chart: SMA-20 (orange), SMA-50 (blue), SMA-200 (purple). Price above all MAs is bullish; below all is bearish.</li>
+            <li><strong>MACD</strong> - Moving Average Convergence Divergence (12,26,9) shown as a sub-chart below the candlestick chart. Green histogram = bullish momentum, Red = bearish. A bullish cross (MACD line above signal) suggests upward momentum.</li>
+            <li><strong>RSI (14)</strong> - Relative Strength Index. Below 30 = oversold (potential buying opportunity, shown in green). Above 70 = overbought (potential selling opportunity, shown in red). 30-70 = neutral.</li>
+            <li><strong>Support/Resistance</strong> - Key price levels identified from the last 20 candles. Support (green) = potential price floor. Resistance (red) = potential price ceiling.</li>
+            <li><strong>ATR (14)</strong> - Average True Range measures volatility. Higher ATR = more price movement expected.</li>
+            <li><strong>TA Score</strong> - Composite score from -1.0 to +1.0 combining all indicators. Strong Buy (&gt;0.5), Buy (&gt;0.2), Neutral (-0.2 to 0.2), Sell (&lt;-0.2), Strong Sell (&lt;-0.5).</li>
+          </ul>
+          <p><strong>Data Source:</strong> Price data is fetched from Finnhub (primary) with TwelveData as fallback, twice daily (7:00 and 19:00 UTC).</p>
+        </mat-expansion-panel>
+
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
+            <mat-panel-title><mat-icon>merge_type</mat-icon> Combined Signals</mat-panel-title>
+          </mat-expansion-panel-header>
+          <p>Trade signals now combine both fundamental and technical analysis:</p>
+          <ul>
+            <li><strong>Fundamental Score</strong> - Based on economic events, AI analysis, and news sentiment (60% weight).</li>
+            <li><strong>Technical Score</strong> - Based on RSI, MACD, moving averages, and price action (40% weight).</li>
+            <li><strong>Combined Score</strong> - Weighted average: 60% fundamental + 40% technical. This is used for final signal derivation.</li>
+            <li><strong>Agreement Indicator</strong> - A green checkmark appears when both fundamentals and technicals agree on direction. An orange warning appears when they diverge.</li>
+          </ul>
+          <p><strong>How to read signals:</strong></p>
+          <ul>
+            <li>When both scores agree (e.g., both bullish), the signal is higher confidence.</li>
+            <li>When they diverge (e.g., fundamentals bullish but technicals bearish), trade with caution and look at the combined score.</li>
+            <li>Strong signals require both a high combined score AND high confidence.</li>
+          </ul>
+        </mat-expansion-panel>
+
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
             <mat-panel-title><mat-icon>notifications_active</mat-icon> Push Notifications</mat-panel-title>
           </mat-expansion-panel-header>
           <p>Receive browser push notifications when strong trade signals are detected:</p>
@@ -188,7 +224,7 @@ import { MatDividerModule } from '@angular/material/divider';
             <li><strong>Push Notifications</strong> - Enable/disable browser push notifications for strong signals</li>
             <li><strong>Data Sources</strong> - View all 5 data sources (Finnhub, Forex Factory, RSS, Alpha Vantage, FRED) and their enabled/disabled status. Admins can toggle sources on or off to control which data feeds are active.</li>
           </ul>
-          <p><strong>Admin Actions:</strong> Admins can also manually trigger edge functions (Fetch Events, Analyze Events, Generate Daily Bias) from the Admin Panel's Actions tab, without waiting for the scheduled cron jobs.</p>
+          <p><strong>Admin Actions:</strong> Admins can manually trigger edge functions (Fetch Events, Analyze Events, Generate Daily Bias, Fetch Price Data, Compute Indicators) from the Admin Panel's Actions tab, without waiting for the scheduled cron jobs.</p>
           <p><strong>User Management:</strong> Admins can lock or unlock user accounts from the Admin Panel's Users tab. Locked users have their <code>is_active</code> status set to false, preventing access. Use this to block unauthorized signups or temporarily disable accounts.</p>
         </mat-expansion-panel>
       </mat-accordion>
@@ -199,12 +235,14 @@ import { MatDividerModule } from '@angular/material/divider';
       <mat-card class="guide-section">
         <mat-card-content>
           <h2><mat-icon>sync</mat-icon> Data Pipeline</h2>
-          <p>Events are automatically fetched and analyzed on this schedule:</p>
+          <p>Events and price data are automatically fetched and analyzed on this schedule:</p>
           <ul>
             <li><strong>Every 4 hours</strong> - New economic events fetched from all sources</li>
             <li><strong>30 min after fetch</strong> - Unanalyzed events sent to Claude AI</li>
-            <li><strong>3x daily (8am, 2pm, 8pm UTC)</strong> - Daily bias generated per pair</li>
-            <li><strong>Weekly</strong> - Events older than 90 days cleaned up</li>
+            <li><strong>7:00 & 19:00 UTC</strong> - Price candle data fetched for all pairs (Finnhub / TwelveData)</li>
+            <li><strong>7:30 & 19:30 UTC</strong> - Technical indicators computed (RSI, MACD, SMA, EMA, ATR, support/resistance)</li>
+            <li><strong>3x daily (8am, 2pm, 8pm UTC)</strong> - Daily bias generated per pair (combines fundamentals + technicals)</li>
+            <li><strong>Weekly</strong> - Events older than 90 days and candles older than 1 year cleaned up</li>
           </ul>
         </mat-card-content>
       </mat-card>
