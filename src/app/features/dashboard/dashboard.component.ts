@@ -11,7 +11,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { EventsService } from '../../core/services/events.service';
 import { CurrencyPairService } from '../../core/services/currency-pair.service';
-import { DailyTradeBias, CurrencyPair, CURRENCY_FLAGS } from '../../core/models';
+import { DailyTradeBias, CurrencyPair, CURRENCY_FLAGS, TechnicalIndicator, TA_SIGNAL_LABELS, TA_SIGNAL_COLORS } from '../../core/models';
+import { TechnicalAnalysisService } from '../../core/services/technical-analysis.service';
 import { BiasBadgeComponent } from '../../shared/components/bias-badge/bias-badge.component';
 import { ConfidenceMeterComponent } from '../../shared/components/confidence-meter/confidence-meter.component';
 import { MarketHeatmapComponent } from '../../shared/components/market-heatmap/market-heatmap.component';
@@ -89,7 +90,16 @@ import { EventListComponent } from './event-list/event-list.component';
                     <span class="pair-flag">{{ getPairFlag(bias.pair_id) }}</span>
                     <span class="pair-symbol">{{ getPairSymbol(bias.pair_id) }}</span>
                   </div>
-                  <app-bias-badge [direction]="bias.direction" />
+                  <div class="badge-group">
+                    <app-bias-badge [direction]="bias.direction" />
+                    @if (getTaIndicator(bias.pair_id); as ta) {
+                      <span class="ta-chip"
+                            [style.background]="getTaColor(ta.ta_signal)"
+                            [matTooltip]="'TA: ' + getTaLabel(ta.ta_signal) + ' (Score: ' + ta.ta_score + ')'">
+                        {{ getTaLabel(ta.ta_signal) }}
+                      </span>
+                    }
+                  </div>
                 </div>
 
                 <div class="bias-score-section">
@@ -306,6 +316,15 @@ import { EventListComponent } from './event-list/event-list.component';
       color: rgba(255,255,255,0.2);
     }
     .ai-badge { font-size: 12px; width: 12px; height: 12px; color: #7c4dff; }
+    .badge-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .ta-chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      color: white;
+      white-space: nowrap;
+    }
 
     .bias-score { text-align: center; margin: 24px 0; }
 
@@ -343,12 +362,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private biasChannel?: RealtimeChannel;
   private pairMap = new Map<string, CurrencyPair>();
+  private taMap = new Map<string, TechnicalIndicator>();
 
   private readonly flagMap = CURRENCY_FLAGS;
 
   constructor(
     private eventsService: EventsService,
-    private pairService: CurrencyPairService
+    private pairService: CurrencyPairService,
+    private taService: TechnicalAnalysisService
   ) {}
 
   async ngOnInit() {
@@ -359,6 +380,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
       const data = await this.eventsService.fetchDailyBias();
       this.biasData.set((data ?? []) as DailyTradeBias[]);
+
+      // Load TA indicators for all pairs with bias data
+      this.loadTaIndicators(pairs);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
@@ -395,5 +419,32 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   getCurrencyFlag(currency: string): string {
     return this.flagMap[currency] ?? '';
+  }
+
+  private async loadTaIndicators(pairs: CurrencyPair[]) {
+    try {
+      const results = await Promise.allSettled(
+        pairs.map(p => this.taService.fetchLatestIndicator(p.id))
+      );
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled' && r.value) {
+          this.taMap.set(pairs[i].id, r.value);
+        }
+      });
+    } catch {
+      // TA data is optional, don't block dashboard
+    }
+  }
+
+  getTaIndicator(pairId: string): TechnicalIndicator | undefined {
+    return this.taMap.get(pairId);
+  }
+
+  getTaLabel(taSignal: string): string {
+    return TA_SIGNAL_LABELS[taSignal as keyof typeof TA_SIGNAL_LABELS] ?? taSignal?.toUpperCase() ?? '';
+  }
+
+  getTaColor(taSignal: string): string {
+    return TA_SIGNAL_COLORS[taSignal as keyof typeof TA_SIGNAL_COLORS] ?? '#9e9e9e';
   }
 }

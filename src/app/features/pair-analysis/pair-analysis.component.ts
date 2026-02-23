@@ -13,6 +13,8 @@ import { CurrencyPairService } from '../../core/services/currency-pair.service';
 import { CurrencyPair, DailyTradeBias, CURRENCY_FLAGS } from '../../core/models';
 import { BiasBadgeComponent } from '../../shared/components/bias-badge/bias-badge.component';
 import { ConfidenceMeterComponent } from '../../shared/components/confidence-meter/confidence-meter.component';
+import { PriceChartComponent } from '../../shared/components/price-chart/price-chart.component';
+import { IndicatorsPanelComponent } from '../../shared/components/indicators-panel/indicators-panel.component';
 
 @Component({
   selector: 'app-pair-analysis',
@@ -21,7 +23,8 @@ import { ConfidenceMeterComponent } from '../../shared/components/confidence-met
     CommonModule, DatePipe, RouterLink,
     MatCardModule, MatIconModule, MatButtonModule,
     MatProgressSpinnerModule, MatChipsModule, MatDividerModule,
-    MatTableModule, BiasBadgeComponent, ConfidenceMeterComponent
+    MatTableModule, BiasBadgeComponent, ConfidenceMeterComponent,
+    PriceChartComponent, IndicatorsPanelComponent
   ],
   template: `
     <div class="pair-analysis-page">
@@ -75,6 +78,32 @@ import { ConfidenceMeterComponent } from '../../shared/components/confidence-met
             </mat-card-content>
           </mat-card>
         }
+
+        <!-- Price Chart -->
+        <section class="ta-section">
+          <h2>
+            <mat-icon>candlestick_chart</mat-icon>
+            Price Chart
+          </h2>
+          <mat-card>
+            <mat-card-content>
+              <app-price-chart [pairId]="pair()!.id" [height]="400" />
+            </mat-card-content>
+          </mat-card>
+        </section>
+
+        <!-- Technical Indicators -->
+        <section class="ta-section">
+          <h2>
+            <mat-icon>analytics</mat-icon>
+            Technical Indicators
+          </h2>
+          <mat-card>
+            <mat-card-content>
+              <app-indicators-panel [pairId]="pair()!.id" />
+            </mat-card-content>
+          </mat-card>
+        </section>
 
         <!-- Historical Bias -->
         <section class="history-section">
@@ -218,6 +247,15 @@ import { ConfidenceMeterComponent } from '../../shared/components/confidence-met
     }
     .no-bias-card p { color: rgba(255,255,255,0.4); }
 
+    .ta-section {
+      margin-top: 32px;
+    }
+    .ta-section h2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
     .history-section { margin-top: 32px; }
     .history-section h2 {
       display: flex;
