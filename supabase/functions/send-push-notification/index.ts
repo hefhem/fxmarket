@@ -78,10 +78,20 @@ async function sendWebPush(subscription: { endpoint: string; p256dh: string; aut
   }
 }
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+};
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   try {
     if (req.method !== 'POST' && req.method !== 'GET') {
-      return new Response('Method not allowed', { status: 405 });
+      return new Response('Method not allowed', { status: 405, headers: corsHeaders });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -96,7 +106,7 @@ Deno.serve(async (req) => {
     if (biasError) throw biasError;
     if (!biasData || biasData.length === 0) {
       return new Response(JSON.stringify({ message: 'No bias data for today' }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -112,7 +122,7 @@ Deno.serve(async (req) => {
 
     if (strongSignals.length === 0) {
       return new Response(JSON.stringify({ message: 'No strong signals to notify about' }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -191,7 +201,7 @@ Deno.serve(async (req) => {
       pushSent,
       pushFailed
     }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (err) {
@@ -210,7 +220,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });

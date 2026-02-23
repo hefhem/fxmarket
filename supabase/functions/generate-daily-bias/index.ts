@@ -90,10 +90,20 @@ Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, directi
   }).filter((b: any) => b.pair_id);
 }
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+};
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   try {
     if (req.method !== 'POST' && req.method !== 'GET') {
-      return new Response('Method not allowed', { status: 405 });
+      return new Response('Method not allowed', { status: 405, headers: corsHeaders });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -107,7 +117,7 @@ Deno.serve(async (req) => {
 
     if (!pairs || pairs.length === 0) {
       return new Response(JSON.stringify({ message: 'No active pairs found' }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -130,7 +140,7 @@ Deno.serve(async (req) => {
 
     if (analyzedEvents.length === 0) {
       return new Response(JSON.stringify({ message: 'No analyzed events found in last 48h', count: 0 }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -160,7 +170,7 @@ Deno.serve(async (req) => {
 
     if (pairAnalyses.length === 0) {
       return new Response(JSON.stringify({ message: 'No pair-relevant analyses found' }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -211,7 +221,7 @@ Deno.serve(async (req) => {
       date: today,
       pairs: biases.length
     }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (err) {
@@ -230,7 +240,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
