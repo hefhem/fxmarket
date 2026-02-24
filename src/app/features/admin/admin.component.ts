@@ -39,15 +39,12 @@ interface SystemStats {
   totalBias: number;
 }
 
-interface SmtpSettings {
+interface EmailProviderSettings {
   id: string;
-  host: string;
-  port: number;
-  username: string;
-  encrypted_password: string;
+  provider: 'resend' | 'sendgrid' | 'brevo';
+  api_key: string;
   from_email: string;
   from_name: string;
-  encryption: 'none' | 'ssl' | 'tls';
   is_active: boolean;
 }
 
@@ -352,10 +349,10 @@ interface SourceHealth {
           </div>
         </mat-tab>
 
-        <!-- SMTP / Email Configuration -->
+        <!-- Email Configuration -->
         <mat-tab>
           <ng-template mat-tab-label>
-            <mat-icon>email</mat-icon>&nbsp;Email / SMTP
+            <mat-icon>email</mat-icon>&nbsp;Email
           </ng-template>
           <div class="tab-content">
             @if (smtpLoading()) {
@@ -363,10 +360,10 @@ interface SourceHealth {
             } @else {
               <mat-card>
                 <mat-card-header>
-                  <mat-card-title>SMTP Configuration</mat-card-title>
+                  <mat-card-title>Email Provider Configuration</mat-card-title>
                 </mat-card-header>
                 <mat-card-content>
-                  <p class="smtp-desc">Configure SMTP settings to enable email notifications for trade signals. Users can opt in from their Settings page.</p>
+                  <p class="smtp-desc">Configure an email provider to enable email notifications for trade signals. Users can opt in from their Settings page.</p>
                   <form [formGroup]="smtpForm" (ngSubmit)="saveSmtp()">
                     <div class="smtp-toggle-row">
                       <mat-slide-toggle formControlName="is_active" color="primary">
@@ -376,34 +373,18 @@ interface SourceHealth {
 
                     <div class="smtp-grid">
                       <mat-form-field appearance="outline">
-                        <mat-label>SMTP Host</mat-label>
-                        <input matInput formControlName="host" placeholder="smtp.gmail.com">
-                      </mat-form-field>
-
-                      <mat-form-field appearance="outline">
-                        <mat-label>Port</mat-label>
-                        <input matInput formControlName="port" type="number" placeholder="587">
-                      </mat-form-field>
-
-                      <mat-form-field appearance="outline">
-                        <mat-label>Encryption</mat-label>
-                        <mat-select formControlName="encryption">
-                          <mat-option value="tls">TLS (recommended)</mat-option>
-                          <mat-option value="ssl">SSL</mat-option>
-                          <mat-option value="none">None</mat-option>
+                        <mat-label>Email Provider</mat-label>
+                        <mat-select formControlName="provider">
+                          <mat-option value="resend">Resend (100 emails/day free)</mat-option>
+                          <mat-option value="sendgrid">SendGrid (100 emails/day free)</mat-option>
+                          <mat-option value="brevo">Brevo (300 emails/day free)</mat-option>
                         </mat-select>
                       </mat-form-field>
-                    </div>
-
-                    <div class="smtp-grid">
-                      <mat-form-field appearance="outline">
-                        <mat-label>Username / Email</mat-label>
-                        <input matInput formControlName="username" placeholder="user@gmail.com">
-                      </mat-form-field>
 
                       <mat-form-field appearance="outline">
-                        <mat-label>Password / App Password</mat-label>
-                        <input matInput formControlName="encrypted_password" type="password" placeholder="••••••••">
+                        <mat-label>API Key</mat-label>
+                        <input matInput formControlName="api_key" type="password"
+                          [placeholder]="smtpForm.get('provider')?.value === 'resend' ? 're_xxxxxxxx' : smtpForm.get('provider')?.value === 'sendgrid' ? 'SG.xxxxxxxx' : 'xkeysib-xxxxxxxx'">
                       </mat-form-field>
                     </div>
 
@@ -652,13 +633,10 @@ export class AdminComponent implements OnInit {
     private fb: FormBuilder
   ) {
     this.smtpForm = this.fb.group({
-      host: [''],
-      port: [587],
-      username: [''],
-      encrypted_password: [''],
+      provider: ['resend'],
+      api_key: [''],
       from_email: [''],
       from_name: ['FX Market Analyzer'],
-      encryption: ['tls'],
       is_active: [false]
     });
   }
@@ -847,13 +825,10 @@ export class AdminComponent implements OnInit {
         .single();
       if (data) {
         this.smtpForm.patchValue({
-          host: data.host || '',
-          port: data.port || 587,
-          username: data.username || '',
-          encrypted_password: data.encrypted_password || '',
+          provider: data.provider || 'resend',
+          api_key: data.api_key || '',
           from_email: data.from_email || '',
           from_name: data.from_name || 'FX Market Analyzer',
-          encryption: data.encryption || 'tls',
           is_active: data.is_active || false
         });
       }

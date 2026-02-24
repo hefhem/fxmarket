@@ -3,14 +3,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-interface SmtpSettings {
-  host: string;
-  port: number;
-  username: string;
-  encrypted_password: string;
+interface EmailSettings {
+  provider: 'resend' | 'sendgrid' | 'brevo';
+  api_key: string;
   from_email: string;
   from_name: string;
-  encryption: 'none' | 'ssl' | 'tls';
   is_active: boolean;
 }
 
@@ -22,121 +19,80 @@ function deriveSignal(biasScore: number, confidence: number): string {
   return 'HOLD';
 }
 
-function base64Encode(str: string): string {
-  return btoa(str);
-}
-
-async function sendSmtpEmail(
-  smtp: SmtpSettings,
+async function sendEmail(
+  settings: EmailSettings,
   to: string,
   subject: string,
   htmlBody: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Use Deno's built-in SMTP via the denopkg SMTPClient
-    // For Deno edge functions, we use raw SMTP socket connection
-    const conn = smtp.encryption === 'ssl'
-      ? await Deno.connectTls({ hostname: smtp.host, port: smtp.port })
-      : await Deno.connect({ hostname: smtp.host, port: smtp.port });
+    const fromField = `${settings.from_name} <${settings.from_email}>`;
 
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-
-    async function readResponse(): Promise<string> {
-      const buf = new Uint8Array(4096);
-      const n = await conn.read(buf);
-      return n ? decoder.decode(buf.subarray(0, n)) : '';
-    }
-
-    async function sendCommand(cmd: string): Promise<string> {
-      await conn.write(encoder.encode(cmd + '\r\n'));
-      return await readResponse();
-    }
-
-    // Read greeting
-    await readResponse();
-
-    // EHLO
-    let ehloResp = await sendCommand(`EHLO fxanalyzer`);
-
-    // STARTTLS for TLS
-    if (smtp.encryption === 'tls') {
-      await sendCommand('STARTTLS');
-      const tlsConn = await Deno.startTls(conn as Deno.TcpConn, { hostname: smtp.host });
-      // Re-assign for further communication
-      const tlsEncoder = new TextEncoder();
-      const tlsDecoder = new TextDecoder();
-
-      async function tlsRead(): Promise<string> {
-        const buf = new Uint8Array(4096);
-        const n = await tlsConn.read(buf);
-        return n ? tlsDecoder.decode(buf.subarray(0, n)) : '';
+    if (settings.provider === 'resend') {
+      // Resend API - https://resend.com/docs/api-reference/emails/send-email
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${settings.api_key}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: fromField,
+          to: [to],
+          subject,
+          html: htmlBody
+        })
+      });
+      if (!resp.ok) {
+        const err = await resp.text();
+        return { success: false, error: `Resend ${resp.status}: ${err}` };
       }
+      return { success: true };
 
-      async function tlsSend(cmd: string): Promise<string> {
-        await tlsConn.write(tlsEncoder.encode(cmd + '\r\n'));
-        return await tlsRead();
+    } else if (settings.provider === 'sendgrid') {
+      // SendGrid v3 API - https://docs.sendgrid.com/api-reference/mail-send/mail-send
+      const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${settings.api_key}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: to }] }],
+          from: { email: settings.from_email, name: settings.from_name },
+          subject,
+          content: [{ type: 'text/html', value: htmlBody }]
+        })
+      });
+      if (!resp.ok) {
+        const err = await resp.text();
+        return { success: false, error: `SendGrid ${resp.status}: ${err}` };
       }
+      return { success: true };
 
-      await tlsSend(`EHLO fxanalyzer`);
-
-      // AUTH LOGIN
-      await tlsSend('AUTH LOGIN');
-      await tlsSend(base64Encode(smtp.username));
-      const authResp = await tlsSend(base64Encode(smtp.encrypted_password));
-      if (!authResp.startsWith('235')) {
-        tlsConn.close();
-        return { success: false, error: `Auth failed: ${authResp.trim()}` };
+    } else if (settings.provider === 'brevo') {
+      // Brevo (formerly Sendinblue) API - https://developers.brevo.com/reference/sendtransacemail
+      const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': settings.api_key,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { email: settings.from_email, name: settings.from_name },
+          to: [{ email: to }],
+          subject,
+          htmlContent: htmlBody
+        })
+      });
+      if (!resp.ok) {
+        const err = await resp.text();
+        return { success: false, error: `Brevo ${resp.status}: ${err}` };
       }
-
-      await tlsSend(`MAIL FROM:<${smtp.from_email}>`);
-      await tlsSend(`RCPT TO:<${to}>`);
-      await tlsSend('DATA');
-
-      const message = [
-        `From: "${smtp.from_name}" <${smtp.from_email}>`,
-        `To: ${to}`,
-        `Subject: ${subject}`,
-        `MIME-Version: 1.0`,
-        `Content-Type: text/html; charset=UTF-8`,
-        ``,
-        htmlBody,
-        `.`
-      ].join('\r\n');
-      const dataResp = await tlsSend(message);
-      await tlsSend('QUIT');
-      tlsConn.close();
-      return { success: dataResp.startsWith('250') };
+      return { success: true };
     }
 
-    // Plain / SSL (already connected)
-    // AUTH LOGIN
-    await sendCommand('AUTH LOGIN');
-    await sendCommand(base64Encode(smtp.username));
-    const authResp = await sendCommand(base64Encode(smtp.encrypted_password));
-    if (!authResp.startsWith('235')) {
-      conn.close();
-      return { success: false, error: `Auth failed: ${authResp.trim()}` };
-    }
-
-    await sendCommand(`MAIL FROM:<${smtp.from_email}>`);
-    await sendCommand(`RCPT TO:<${to}>`);
-    await sendCommand('DATA');
-
-    const message = [
-      `From: "${smtp.from_name}" <${smtp.from_email}>`,
-      `To: ${to}`,
-      `Subject: ${subject}`,
-      `MIME-Version: 1.0`,
-      `Content-Type: text/html; charset=UTF-8`,
-      ``,
-      htmlBody,
-      `.`
-    ].join('\r\n');
-    const dataResp = await sendCommand(message);
-    await sendCommand('QUIT');
-    conn.close();
-    return { success: dataResp.startsWith('250') };
+    return { success: false, error: `Unknown provider: ${settings.provider}` };
   } catch (err) {
     return { success: false, error: String(err) };
   }
@@ -155,7 +111,7 @@ function buildSignalEmailHtml(signals: Array<{ symbol: string; signal: string; s
       <tr>
         <td colspan="4" style="padding:8px 12px 16px;color:#b0b0b0;font-size:13px;border-bottom:1px solid #1a1a2e">
           ${s.reasoning}
-          ${s.timing ? `<br><span style="color:#ff9800">⏰ ${s.timing}</span>` : ''}
+          ${s.timing ? `<br><span style="color:#ff9800">&#9200; ${s.timing}</span>` : ''}
         </td>
       </tr>`;
   }).join('');
@@ -204,40 +160,56 @@ Deno.serve(async (req) => {
       isTest = body?.test === true;
     } catch { /* no body */ }
 
-    // Get SMTP settings
-    const { data: smtpData } = await supabase
+    // Get email settings
+    const { data: settingsData } = await supabase
       .from('smtp_settings')
       .select('*')
       .limit(1)
       .single();
 
-    if (!smtpData || !smtpData.is_active) {
-      return new Response(JSON.stringify({ message: 'Email notifications are disabled. Configure SMTP in Admin > Email/SMTP.' }), {
+    if (!settingsData || !settingsData.is_active) {
+      return new Response(JSON.stringify({ message: 'Email notifications are disabled. Configure in Admin > Email/SMTP.' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    const smtp = smtpData as SmtpSettings;
+    const settings: EmailSettings = {
+      provider: settingsData.provider || 'resend',
+      api_key: settingsData.api_key || '',
+      from_email: settingsData.from_email || '',
+      from_name: settingsData.from_name || 'FX Market Analyzer',
+      is_active: settingsData.is_active
+    };
 
-    // Test mode - send to admin's from_email
+    if (!settings.api_key) {
+      return new Response(JSON.stringify({ error: 'No API key configured. Add your email provider API key in Admin > Email/SMTP.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Test mode - send to from_email
     if (isTest) {
-      const result = await sendSmtpEmail(
-        smtp,
-        smtp.from_email,
+      const result = await sendEmail(
+        settings,
+        settings.from_email,
         'FX Market Analyzer - Test Email',
         buildSignalEmailHtml([{
           symbol: 'EUR/USD', signal: 'STRONG BUY', score: 0.75,
-          confidence: 0.85, reasoning: 'This is a test email to verify SMTP configuration.',
+          confidence: 0.85, reasoning: 'This is a test email to verify your email configuration is working correctly.',
           timing: 'Test - London Session 08:00-10:00 UTC'
         }])
       );
 
       if (result.success) {
-        return new Response(JSON.stringify({ message: `Test email sent to ${smtp.from_email}` }), {
+        return new Response(JSON.stringify({ message: `Test email sent to ${settings.from_email} via ${settings.provider}` }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       } else {
-        throw new Error(`SMTP error: ${result.error}`);
+        return new Response(JSON.stringify({ error: result.error }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
     }
 
@@ -292,7 +264,7 @@ Deno.serve(async (req) => {
     let failed = 0;
 
     for (const user of users) {
-      const result = await sendSmtpEmail(smtp, user.email, subject, html);
+      const result = await sendEmail(settings, user.email, subject, html);
       if (result.success) {
         sent++;
       } else {
@@ -304,12 +276,12 @@ Deno.serve(async (req) => {
     await supabase.from('system_logs').insert({
       level: 'info',
       source: 'send-email-notification',
-      message: `Sent ${sent} emails for ${strongSignals.length} strong signals (${failed} failed)`,
-      metadata: { sent, failed, signals: strongSignals.length }
+      message: `Sent ${sent} emails via ${settings.provider} for ${strongSignals.length} strong signals (${failed} failed)`,
+      metadata: { sent, failed, signals: strongSignals.length, provider: settings.provider }
     });
 
     return new Response(JSON.stringify({
-      message: `Email notifications sent`,
+      message: `Email notifications sent via ${settings.provider}`,
       sent,
       failed,
       signals: strongSignals.length

@@ -194,13 +194,18 @@ import { MatDividerModule } from '@angular/material/divider';
           </mat-expansion-panel-header>
           <p>Receive email alerts for strong trade signals:</p>
           <ul>
-            <li><strong>Admin Setup</strong> - An administrator must first configure SMTP settings in Admin > Email/SMTP tab</li>
-            <li><strong>User Opt-In</strong> - Once SMTP is configured, users can enable email notifications in Settings</li>
+            <li><strong>Admin Setup</strong> - An administrator must first configure an email provider in Admin > Email tab</li>
+            <li><strong>User Opt-In</strong> - Once configured, users can enable email notifications in Settings</li>
             <li><strong>Strong Signals Only</strong> - Emails are sent only for STRONG BUY and STRONG SELL signals</li>
             <li><strong>Rich Content</strong> - Emails include pair name, signal type, score, confidence, AI reasoning, and recommended trade timing</li>
-            <li><strong>Test Email</strong> - Admins can send a test email from the SMTP configuration page to verify settings</li>
+            <li><strong>Test Email</strong> - Admins can send a test email from the configuration page to verify settings</li>
           </ul>
-          <p><strong>Supported providers:</strong> Gmail (use App Password), Outlook, SendGrid, Amazon SES, or any SMTP server with TLS/SSL.</p>
+          <p><strong>Supported providers:</strong></p>
+          <ul>
+            <li><strong>Resend</strong> - 100 emails/day free. Sign up at <code>resend.com</code>, get an API key.</li>
+            <li><strong>SendGrid</strong> - 100 emails/day free. Sign up at <code>sendgrid.com</code>, create an API key.</li>
+            <li><strong>Brevo</strong> - 300 emails/day free. Sign up at <code>brevo.com</code>, get an API key from SMTP & API settings.</li>
+          </ul>
         </mat-expansion-panel>
 
         <mat-expansion-panel>

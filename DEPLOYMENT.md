@@ -107,6 +107,7 @@ Run these migrations **in order** via **Supabase Dashboard > SQL Editor**. Each 
 | 10 | `010_technical_analysis.sql` | Price candles, technical indicators tables |
 | 11 | `011_trade_timing.sql` | Trade timing columns on daily_trade_bias |
 | 12 | `012_fix_cron_and_email.sql` | Fixed cron jobs + SMTP settings + email notifications |
+| 13 | `013_email_provider.sql` | Add provider + api_key columns for HTTP-based email |
 
 **IMPORTANT** - Before running migration 009, edit the admin email:
 
@@ -305,23 +306,24 @@ WHERE p.email = 'your-admin@email.com'
 ON CONFLICT DO NOTHING;
 ```
 
-### 9.2 Configure SMTP for Email Notifications
+### 9.2 Configure Email Notifications
 
-1. Log in as admin
-2. Go to **Admin Panel > Email / SMTP** tab
-3. Fill in your SMTP settings:
+1. Sign up for one of these free email providers:
 
-| Provider | Host | Port | Encryption |
-|----------|------|------|------------|
-| Gmail | smtp.gmail.com | 587 | TLS |
-| Outlook | smtp-mail.outlook.com | 587 | TLS |
-| SendGrid | smtp.sendgrid.net | 587 | TLS |
-| Amazon SES | email-smtp.us-east-1.amazonaws.com | 587 | TLS |
+| Provider | Free Tier | Sign Up | API Key Format |
+|----------|-----------|---------|----------------|
+| **Resend** | 100 emails/day | [resend.com](https://resend.com) | `re_xxxxxxxx` |
+| **SendGrid** | 100 emails/day | [sendgrid.com](https://sendgrid.com) | `SG.xxxxxxxx` |
+| **Brevo** | 300 emails/day | [brevo.com](https://brevo.com) | `xkeysib-xxxxxxxx` |
 
-> **Gmail users**: Use an [App Password](https://myaccount.google.com/apppasswords), not your regular password.
+2. Log in as admin
+3. Go to **Admin Panel > Email** tab
+4. Select your provider and paste your API key
+5. Set your **From Email** and **From Name**
+6. Click **Send Test Email** to verify
+7. Toggle **Enable** when ready
 
-4. Click **Send Test Email** to verify
-5. Toggle **Enable** when ready
+> **Resend note**: You must verify a domain or use their onboarding email to send. Follow their setup guide after sign-up.
 
 ### 9.3 Verify Cron Jobs
 
