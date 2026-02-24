@@ -70,6 +70,9 @@ import { MatDividerModule } from '@angular/material/divider';
           <p>Deep dive into individual currency pairs:</p>
           <ul>
             <li><strong>Current Bias</strong> - Today's AI-generated directional bias with full reasoning</li>
+            <li><strong>Trade Timing</strong> - AI-recommended entry window with specific date/time and optimal trading session (Asian, London, New York, or London/NY Overlap). Helps you decide exactly when to place your trade for best execution.</li>
+            <li><strong>Price Chart</strong> - Interactive candlestick chart with SMA overlays and MACD sub-chart</li>
+            <li><strong>Technical Indicators</strong> - RSI, MACD, Moving Averages, Support/Resistance, ATR</li>
             <li><strong>History Chart</strong> - Visual 30-day bias history showing directional changes</li>
             <li><strong>History Table</strong> - Detailed daily records with direction, score, confidence, and AI reasoning</li>
           </ul>

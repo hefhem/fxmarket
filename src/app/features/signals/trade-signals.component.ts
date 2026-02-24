@@ -163,6 +163,14 @@ import { SignalType, TradeSignal } from '../../core/models';
                   <app-confidence-meter [value]="sig.confidence" />
                 </div>
 
+                <!-- Trade Timing -->
+                @if (sig.recommended_entry_timing) {
+                  <div class="timing-row">
+                    <mat-icon>schedule</mat-icon>
+                    <span class="timing-text">{{ sig.recommended_entry_timing }}</span>
+                  </div>
+                }
+
                 <!-- AI Reasoning -->
                 <p class="reasoning">{{ sig.ai_reasoning }}</p>
 
@@ -343,6 +351,29 @@ import { SignalType, TradeSignal } from '../../core/models';
       margin-bottom: 12px;
     }
     .confidence-label { font-size: 11px; color: rgba(255,255,255,0.4); min-width: 70px; }
+
+    .timing-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 8px 10px;
+      background: rgba(255,152,0,0.08);
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    .timing-row mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      color: #ff9800;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .timing-text {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.5;
+    }
 
     .reasoning {
       font-size: 12px;

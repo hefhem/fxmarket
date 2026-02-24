@@ -68,6 +68,21 @@ import { IndicatorsPanelComponent } from '../../shared/components/indicators-pan
                   </div>
                 </div>
               </div>
+              @if (currentBias()!.recommended_entry_timing) {
+                <mat-divider></mat-divider>
+                <div class="trade-timing-section">
+                  <div class="timing-header">
+                    <mat-icon>schedule</mat-icon>
+                    <h3>Recommended Trade Timing</h3>
+                    @if (currentBias()!.trade_session) {
+                      <span class="session-badge" [class]="'session-' + currentBias()!.trade_session">
+                        {{ formatSession(currentBias()!.trade_session!) }}
+                      </span>
+                    }
+                  </div>
+                  <p class="timing-text">{{ currentBias()!.recommended_entry_timing }}</p>
+                </div>
+              }
             </mat-card-content>
           </mat-card>
         } @else {
@@ -238,6 +253,43 @@ import { IndicatorsPanelComponent } from '../../shared/components/indicators-pan
       color: rgba(255,255,255,0.5);
     }
 
+    .trade-timing-section {
+      margin-top: 16px;
+      padding-top: 16px;
+    }
+    .timing-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .timing-header mat-icon {
+      color: #ff9800;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+    .timing-header h3 { margin: 0; font-size: 14px; font-weight: 600; }
+    .session-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .session-asian { background: rgba(156,39,176,0.15); color: #ce93d8; }
+    .session-london { background: rgba(33,150,243,0.15); color: #64b5f6; }
+    .session-new_york { background: rgba(76,175,80,0.15); color: #81c784; }
+    .session-london_ny_overlap { background: rgba(255,152,0,0.15); color: #ffb74d; }
+    .timing-text {
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      line-height: 1.6;
+      margin: 0;
+      padding-left: 28px;
+    }
+
     .no-bias-card { text-align: center; padding: 32px; margin-bottom: 32px; }
     .no-bias-card mat-icon {
       font-size: 48px;
@@ -379,5 +431,15 @@ export class PairAnalysisComponent implements OnInit {
 
   getFlag(currency: string): string {
     return this.flagMap[currency] ?? '';
+  }
+
+  formatSession(session: string): string {
+    const labels: Record<string, string> = {
+      asian: 'Asian Session',
+      london: 'London Session',
+      new_york: 'New York Session',
+      london_ny_overlap: 'London/NY Overlap',
+    };
+    return labels[session] ?? session;
   }
 }

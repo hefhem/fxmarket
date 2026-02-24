@@ -35,6 +35,8 @@ interface BiasResult {
   confidence: number;
   reasoning: string;
   contributing_event_ids: string[];
+  recommended_entry_timing: string;
+  trade_session: string;
 }
 
 async function generateBiasWithClaude(pairAnalyses: PairAnalysis[]): Promise<BiasResult[]> {
@@ -79,11 +81,13 @@ Provide for each pair:
 - direction: "bullish" (score > 0.1), "bearish" (score < -0.1), or "neutral"
 - confidence: 0.0 to 1.0
 - reasoning: 2-3 sentence summary of the directional bias${hasTechnical ? ' incorporating both fundamental and technical factors' : ''}
+- recommended_entry_timing: A specific, actionable trade entry recommendation including: the best date/time window (use today's date ${new Date().toISOString().split('T')[0]} or tomorrow if markets are closing), the forex session (e.g., "London open 08:00-10:00 UTC", "NY session 13:00-16:00 UTC"), and a brief reason why that window is optimal (e.g., liquidity, key data release, session overlap). Example: "Enter during London-NY overlap (13:00-16:00 UTC on ${new Date().toISOString().split('T')[0]}) when EUR liquidity peaks ahead of FOMC minutes."
+- trade_session: The primary recommended session, one of: "asian", "london", "new_york", "london_ny_overlap"
 
 Today's event analyses by pair:
 ${description}
 
-Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, direction, confidence, reasoning }`;
+Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, direction, confidence, reasoning, recommended_entry_timing, trade_session }`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -110,6 +114,7 @@ Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, directi
 
   const biases = JSON.parse(jsonMatch[0]);
 
+  const validSessions = ['asian', 'london', 'new_york', 'london_ny_overlap'];
   return biases.map((b: any) => {
     const pa = pairAnalyses.find(p => p.symbol === b.symbol);
     return {
@@ -119,7 +124,9 @@ Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, directi
       direction: b.direction,
       confidence: Math.max(0, Math.min(1, b.confidence)),
       reasoning: b.reasoning,
-      contributing_event_ids: []
+      contributing_event_ids: [],
+      recommended_entry_timing: b.recommended_entry_timing ?? '',
+      trade_session: validSessions.includes(b.trade_session) ? b.trade_session : 'london',
     };
   }).filter((b: any) => b.pair_id);
 }
@@ -287,6 +294,8 @@ Deno.serve(async (req) => {
         ai_reasoning: b.reasoning,
         ta_score: taScore,
         combined_score: combinedScore !== null ? Math.round(combinedScore * 100) / 100 : null,
+        recommended_entry_timing: b.recommended_entry_timing || null,
+        trade_session: b.trade_session || null,
       };
     });
 

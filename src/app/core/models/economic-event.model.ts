@@ -41,7 +41,11 @@ export interface TradeSignal {
   updated_at: string;
   ta_score?: number | null;
   combined_score?: number | null;
+  recommended_entry_timing?: string | null;
+  trade_session?: TradeSession | null;
 }
+
+export type TradeSession = 'asian' | 'london' | 'new_york' | 'london_ny_overlap';
 
 export interface DailyTradeBias {
   id: string;
@@ -55,6 +59,8 @@ export interface DailyTradeBias {
   ai_reasoning: string;
   ta_score?: number | null;
   combined_score?: number | null;
+  recommended_entry_timing?: string | null;
+  trade_session?: TradeSession | null;
   created_at: string;
   updated_at: string;
 }
