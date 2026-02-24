@@ -10,6 +10,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatTableModule } from '@angular/material/table';
 import { EventsService } from '../../core/services/events.service';
 import { CurrencyPairService } from '../../core/services/currency-pair.service';
+import { AuthService } from '../../core/services/auth.service';
 import { CurrencyPair, DailyTradeBias, CURRENCY_FLAGS } from '../../core/models';
 import { BiasBadgeComponent } from '../../shared/components/bias-badge/bias-badge.component';
 import { ConfidenceMeterComponent } from '../../shared/components/confidence-meter/confidence-meter.component';
@@ -81,6 +82,12 @@ import { IndicatorsPanelComponent } from '../../shared/components/indicators-pan
                     }
                   </div>
                   <p class="timing-text">{{ currentBias()!.recommended_entry_timing }}</p>
+                  @if (currentBias()!.entry_start_utc && currentBias()!.entry_end_utc) {
+                    <div class="local-time-row">
+                      <mat-icon>public</mat-icon>
+                      <span>Your time ({{ getUserTimezone() }}): <strong>{{ formatToUserTz(currentBias()!.entry_start_utc!) }} &ndash; {{ formatToUserTz(currentBias()!.entry_end_utc!) }}</strong></span>
+                    </div>
+                  }
                 </div>
               }
             </mat-card-content>
@@ -286,9 +293,27 @@ import { IndicatorsPanelComponent } from '../../shared/components/indicators-pan
       font-size: 13px;
       color: rgba(255,255,255,0.7);
       line-height: 1.6;
-      margin: 0;
+      margin: 0 0 8px;
       padding-left: 28px;
     }
+    .local-time-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: rgba(33,150,243,0.08);
+      border-radius: 6px;
+      margin-left: 28px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+    }
+    .local-time-row mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: #64b5f6;
+    }
+    .local-time-row strong { color: #64b5f6; }
 
     .no-bias-card { text-align: center; padding: 32px; margin-bottom: 32px; }
     .no-bias-card mat-icon {
@@ -396,7 +421,8 @@ export class PairAnalysisComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private pairService: CurrencyPairService,
-    private eventsService: EventsService
+    private eventsService: EventsService,
+    private authService: AuthService
   ) {}
 
   async ngOnInit() {
@@ -431,6 +457,30 @@ export class PairAnalysisComponent implements OnInit {
 
   getFlag(currency: string): string {
     return this.flagMap[currency] ?? '';
+  }
+
+  getUserTimezone(): string {
+    return this.authService.profile()?.timezone || 'UTC';
+  }
+
+  formatToUserTz(utcDateStr: string): string {
+    try {
+      const date = new Date(utcDateStr);
+      if (isNaN(date.getTime())) return utcDateStr;
+      const tz = this.getUserTimezone();
+      return date.toLocaleTimeString('en-US', {
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }) + ' ' + date.toLocaleDateString('en-US', {
+        timeZone: tz,
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return utcDateStr;
+    }
   }
 
   formatSession(session: string): string {

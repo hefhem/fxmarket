@@ -67,6 +67,8 @@ export class SignalsService {
           combined_score: row.combined_score ?? null,
           recommended_entry_timing: row.recommended_entry_timing ?? null,
           trade_session: row.trade_session ?? null,
+          entry_start_utc: row.entry_start_utc ?? null,
+          entry_end_utc: row.entry_end_utc ?? null,
         };
       });
 

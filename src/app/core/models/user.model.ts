@@ -5,6 +5,7 @@ export interface UserProfile {
   avatar_url?: string;
   timezone: string;
   default_pairs: string[];
+  email_notifications: boolean;
   created_at: string;
   updated_at: string;
 }

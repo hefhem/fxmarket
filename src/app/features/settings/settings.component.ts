@@ -168,6 +168,41 @@ interface DataSource {
 
       <mat-divider></mat-divider>
 
+      <!-- Email Notifications Section -->
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>email</mat-icon> Email Notifications
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          @if (!smtpActive()) {
+            <p class="push-status">
+              <mat-icon>info</mat-icon>
+              Email notifications are not yet configured by your administrator. Contact your admin to set up SMTP.
+            </p>
+          } @else {
+            <p class="push-description">
+              Receive email alerts when strong trade signals (STRONG BUY/SELL) are detected. Emails are sent to your account email address.
+            </p>
+            <div class="push-toggle-row">
+              <mat-slide-toggle
+                [checked]="emailEnabled()"
+                (change)="toggleEmail($event.checked)"
+                [disabled]="togglingEmail()"
+                color="primary">
+                {{ emailEnabled() ? 'Enabled' : 'Disabled' }}
+              </mat-slide-toggle>
+              @if (togglingEmail()) {
+                <mat-spinner diameter="18"></mat-spinner>
+              }
+            </div>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      <mat-divider></mat-divider>
+
       <!-- Data Sources Section -->
       <mat-card>
         <mat-card-header>
@@ -275,6 +310,9 @@ export class SettingsComponent implements OnInit {
   ];
 
   togglingPush = signal(false);
+  smtpActive = signal(false);
+  emailEnabled = signal(false);
+  togglingEmail = signal(false);
   dataSources = signal<DataSource[]>([]);
   sourcesLoading = signal(true);
 
@@ -310,8 +348,10 @@ export class SettingsComponent implements OnInit {
         timezone: profile.timezone || 'UTC',
         default_pairs: profile.default_pairs || ['EUR/USD', 'GBP/USD', 'USD/JPY']
       });
+      this.emailEnabled.set(!!(profile as any).email_notifications);
     }
     this.loadDataSources();
+    this.loadSmtpStatus();
   }
 
   private async loadDataSources() {
@@ -381,6 +421,37 @@ export class SettingsComponent implements OnInit {
       this.snackBar.open(err.message || 'Failed to change password', 'Close', { duration: 5000 });
     } finally {
       this.changingPassword.set(false);
+    }
+  }
+
+  private async loadSmtpStatus() {
+    try {
+      const { data } = await this.supabase.from('smtp_settings')
+        .select('is_active')
+        .limit(1)
+        .single();
+      this.smtpActive.set(data?.is_active ?? false);
+    } catch { /* SMTP table may not exist yet */ }
+  }
+
+  async toggleEmail(enabled: boolean) {
+    this.togglingEmail.set(true);
+    try {
+      const user = this.auth.currentUser();
+      if (!user) throw new Error('Not authenticated');
+      const { error } = await this.supabase.from('profiles')
+        .update({ email_notifications: enabled })
+        .eq('id', user.id);
+      if (error) throw error;
+      this.emailEnabled.set(enabled);
+      this.snackBar.open(
+        enabled ? 'Email notifications enabled' : 'Email notifications disabled',
+        'Close', { duration: 3000 }
+      );
+    } catch (err: any) {
+      this.snackBar.open(err.message || 'Failed to update email preference', 'Close', { duration: 5000 });
+    } finally {
+      this.togglingEmail.set(false);
     }
   }
 

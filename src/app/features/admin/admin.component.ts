@@ -1,5 +1,6 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
+import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTableModule } from '@angular/material/table';
@@ -8,6 +9,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatSelectModule } from '@angular/material/select';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { SupabaseService } from '../../core/services/supabase.service';
 
@@ -35,6 +39,18 @@ interface SystemStats {
   totalBias: number;
 }
 
+interface SmtpSettings {
+  id: string;
+  host: string;
+  port: number;
+  username: string;
+  encrypted_password: string;
+  from_email: string;
+  from_name: string;
+  encryption: 'none' | 'ssl' | 'tls';
+  is_active: boolean;
+}
+
 interface SourceHealth {
   source: string;
   lastSuccess: string | null;
@@ -48,10 +64,11 @@ interface SourceHealth {
   selector: 'app-admin',
   standalone: true,
   imports: [
-    CommonModule, DatePipe,
+    CommonModule, DatePipe, ReactiveFormsModule,
     MatCardModule, MatTabsModule, MatTableModule, MatIconModule,
     MatButtonModule, MatProgressSpinnerModule, MatChipsModule,
-    MatSelectModule, MatSnackBarModule
+    MatSelectModule, MatSnackBarModule, MatFormFieldModule,
+    MatInputModule, MatSlideToggleModule
   ],
   template: `
     <div class="admin-page">
@@ -310,7 +327,118 @@ interface SourceHealth {
                   }
                 </mat-card-content>
               </mat-card>
+              <mat-card class="action-card">
+                <mat-card-content>
+                  <mat-icon>notifications_active</mat-icon>
+                  <h3>Send Notifications</h3>
+                  <p>Send push + email notifications for strong signals</p>
+                  <button mat-raised-button color="primary"
+                    (click)="triggerFunction('send-push-notification')"
+                    [disabled]="triggerLoading().has('send-push-notification')">
+                    @if (triggerLoading().has('send-push-notification')) {
+                      <mat-spinner diameter="18"></mat-spinner>
+                    } @else {
+                      Run
+                    }
+                  </button>
+                  @if (triggerResults()['send-push-notification']; as result) {
+                    <div class="trigger-result" [class.success]="!result.error" [class.error]="result.error">
+                      {{ result.summary }}
+                    </div>
+                  }
+                </mat-card-content>
+              </mat-card>
             </div>
+          </div>
+        </mat-tab>
+
+        <!-- SMTP / Email Configuration -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon>email</mat-icon>&nbsp;Email / SMTP
+          </ng-template>
+          <div class="tab-content">
+            @if (smtpLoading()) {
+              <div class="loading"><mat-spinner diameter="32"></mat-spinner></div>
+            } @else {
+              <mat-card>
+                <mat-card-header>
+                  <mat-card-title>SMTP Configuration</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <p class="smtp-desc">Configure SMTP settings to enable email notifications for trade signals. Users can opt in from their Settings page.</p>
+                  <form [formGroup]="smtpForm" (ngSubmit)="saveSmtp()">
+                    <div class="smtp-toggle-row">
+                      <mat-slide-toggle formControlName="is_active" color="primary">
+                        {{ smtpForm.get('is_active')?.value ? 'Email notifications enabled' : 'Email notifications disabled' }}
+                      </mat-slide-toggle>
+                    </div>
+
+                    <div class="smtp-grid">
+                      <mat-form-field appearance="outline">
+                        <mat-label>SMTP Host</mat-label>
+                        <input matInput formControlName="host" placeholder="smtp.gmail.com">
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>Port</mat-label>
+                        <input matInput formControlName="port" type="number" placeholder="587">
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>Encryption</mat-label>
+                        <mat-select formControlName="encryption">
+                          <mat-option value="tls">TLS (recommended)</mat-option>
+                          <mat-option value="ssl">SSL</mat-option>
+                          <mat-option value="none">None</mat-option>
+                        </mat-select>
+                      </mat-form-field>
+                    </div>
+
+                    <div class="smtp-grid">
+                      <mat-form-field appearance="outline">
+                        <mat-label>Username / Email</mat-label>
+                        <input matInput formControlName="username" placeholder="user@gmail.com">
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>Password / App Password</mat-label>
+                        <input matInput formControlName="encrypted_password" type="password" placeholder="••••••••">
+                      </mat-form-field>
+                    </div>
+
+                    <div class="smtp-grid">
+                      <mat-form-field appearance="outline">
+                        <mat-label>From Email</mat-label>
+                        <input matInput formControlName="from_email" placeholder="noreply@yourdomain.com">
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>From Name</mat-label>
+                        <input matInput formControlName="from_name" placeholder="FX Market Analyzer">
+                      </mat-form-field>
+                    </div>
+
+                    <div class="smtp-actions">
+                      <button mat-raised-button color="primary" type="submit" [disabled]="smtpSaving()">
+                        @if (smtpSaving()) {
+                          <mat-spinner diameter="18"></mat-spinner>
+                        } @else {
+                          Save SMTP Settings
+                        }
+                      </button>
+                      <button mat-stroked-button type="button" (click)="testSmtp()" [disabled]="smtpTesting()">
+                        @if (smtpTesting()) {
+                          <mat-spinner diameter="18"></mat-spinner>
+                        } @else {
+                          Send Test Email
+                        }
+                      </button>
+                    </div>
+                  </form>
+                </mat-card-content>
+              </mat-card>
+            }
           </div>
         </mat-tab>
 
@@ -481,6 +609,21 @@ interface SourceHealth {
     }
     .trigger-result.success { background: rgba(76,175,80,0.1); color: #4caf50; }
     .trigger-result.error { background: rgba(244,67,54,0.1); color: #f44336; }
+
+    .smtp-desc { color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 16px; }
+    .smtp-toggle-row { margin-bottom: 16px; }
+    .smtp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0 16px;
+    }
+    .smtp-grid mat-form-field { width: 100%; }
+    .smtp-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .smtp-actions button mat-icon { font-size: 18px; width: 18px; height: 18px; margin-right: 4px; }
   `]
 })
 export class AdminComponent implements OnInit {
@@ -495,19 +638,38 @@ export class AdminComponent implements OnInit {
   triggerLoading = signal<Set<string>>(new Set());
   triggerResults = signal<Record<string, { summary: string; error?: boolean }>>({});
 
+  // SMTP
+  smtpForm: FormGroup;
+  smtpLoading = signal(true);
+  smtpSaving = signal(false);
+  smtpTesting = signal(false);
+
   userColumns = ['email', 'full_name', 'roles', 'status', 'created_at', 'actions'];
 
   constructor(
     private supabase: SupabaseService,
-    private snackBar: MatSnackBar
-  ) {}
+    private snackBar: MatSnackBar,
+    private fb: FormBuilder
+  ) {
+    this.smtpForm = this.fb.group({
+      host: [''],
+      port: [587],
+      username: [''],
+      encrypted_password: [''],
+      from_email: [''],
+      from_name: ['FX Market Analyzer'],
+      encryption: ['tls'],
+      is_active: [false]
+    });
+  }
 
   async ngOnInit() {
     await Promise.all([
       this.loadStats(),
       this.loadUsers(),
       this.loadLogs(),
-      this.loadHealth()
+      this.loadHealth(),
+      this.loadSmtp()
     ]);
   }
 
@@ -674,6 +836,62 @@ export class AdminComponent implements OnInit {
     } else {
       this.snackBar.open('User promoted to admin', 'Close', { duration: 3000 });
       await this.loadUsers();
+    }
+  }
+
+  private async loadSmtp() {
+    try {
+      const { data } = await this.supabase.from('smtp_settings')
+        .select('*')
+        .limit(1)
+        .single();
+      if (data) {
+        this.smtpForm.patchValue({
+          host: data.host || '',
+          port: data.port || 587,
+          username: data.username || '',
+          encrypted_password: data.encrypted_password || '',
+          from_email: data.from_email || '',
+          from_name: data.from_name || 'FX Market Analyzer',
+          encryption: data.encryption || 'tls',
+          is_active: data.is_active || false
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load SMTP settings:', err);
+    } finally {
+      this.smtpLoading.set(false);
+    }
+  }
+
+  async saveSmtp() {
+    this.smtpSaving.set(true);
+    try {
+      const values = this.smtpForm.value;
+      const { error } = await this.supabase.from('smtp_settings')
+        .update(values)
+        .not('id', 'is', null);
+      if (error) throw error;
+      this.snackBar.open('SMTP settings saved', 'Close', { duration: 3000 });
+    } catch (err: any) {
+      this.snackBar.open(err.message || 'Failed to save SMTP settings', 'Close', { duration: 5000 });
+    } finally {
+      this.smtpSaving.set(false);
+    }
+  }
+
+  async testSmtp() {
+    this.smtpTesting.set(true);
+    try {
+      const { data, error } = await this.supabase.client.functions.invoke('send-email-notification', {
+        body: { test: true }
+      });
+      if (error) throw error;
+      this.snackBar.open(data?.message || 'Test email sent', 'Close', { duration: 3000 });
+    } catch (err: any) {
+      this.snackBar.open(err.message || 'Failed to send test email', 'Close', { duration: 5000 });
+    } finally {
+      this.smtpTesting.set(false);
     }
   }
 }

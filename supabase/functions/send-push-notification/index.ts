@@ -188,11 +188,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Trigger email notifications
+    let emailResult = 'skipped';
+    try {
+      const emailResp = await fetch(`${SUPABASE_URL}/functions/v1/send-email-notification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        }
+      });
+      const emailData = await emailResp.json();
+      emailResult = emailData.message || 'triggered';
+    } catch (emailErr) {
+      emailResult = `error: ${String(emailErr)}`;
+    }
+
     await supabase.from('system_logs').insert({
       level: 'info',
       source: 'send-push-notification',
       message: `Sent ${pushSent} push notifications for ${strongSignals.length} strong signals`,
-      metadata: { date: today, strongSignals: strongSignals.length, pushSent, pushFailed }
+      metadata: { date: today, strongSignals: strongSignals.length, pushSent, pushFailed, emailResult }
     });
 
     return new Response(JSON.stringify({

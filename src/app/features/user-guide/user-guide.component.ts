@@ -190,6 +190,21 @@ import { MatDividerModule } from '@angular/material/divider';
 
         <mat-expansion-panel>
           <mat-expansion-panel-header>
+            <mat-panel-title><mat-icon>email</mat-icon> Email Notifications</mat-panel-title>
+          </mat-expansion-panel-header>
+          <p>Receive email alerts for strong trade signals:</p>
+          <ul>
+            <li><strong>Admin Setup</strong> - An administrator must first configure SMTP settings in Admin > Email/SMTP tab</li>
+            <li><strong>User Opt-In</strong> - Once SMTP is configured, users can enable email notifications in Settings</li>
+            <li><strong>Strong Signals Only</strong> - Emails are sent only for STRONG BUY and STRONG SELL signals</li>
+            <li><strong>Rich Content</strong> - Emails include pair name, signal type, score, confidence, AI reasoning, and recommended trade timing</li>
+            <li><strong>Test Email</strong> - Admins can send a test email from the SMTP configuration page to verify settings</li>
+          </ul>
+          <p><strong>Supported providers:</strong> Gmail (use App Password), Outlook, SendGrid, Amazon SES, or any SMTP server with TLS/SSL.</p>
+        </mat-expansion-panel>
+
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
             <mat-panel-title><mat-icon>cloud_off</mat-icon> Offline Mode</mat-panel-title>
           </mat-expansion-panel-header>
           <p>The app includes offline support via a service worker:</p>
@@ -221,10 +236,11 @@ import { MatDividerModule } from '@angular/material/divider';
           </mat-expansion-panel-header>
           <ul>
             <li><strong>Profile</strong> - Update your display name</li>
-            <li><strong>Timezone</strong> - Set your preferred timezone for event display</li>
+            <li><strong>Timezone</strong> - Set your preferred timezone. Trade timing recommendations are automatically converted to your selected timezone.</li>
             <li><strong>Default Pairs</strong> - Choose which pairs to show by default</li>
             <li><strong>Password</strong> - Change your account password</li>
             <li><strong>Push Notifications</strong> - Enable/disable browser push notifications for strong signals</li>
+            <li><strong>Email Notifications</strong> - Enable/disable email alerts for strong signals (requires admin SMTP setup)</li>
             <li><strong>Data Sources</strong> - View all 5 data sources (Finnhub, Forex Factory, RSS, Alpha Vantage, FRED) and their enabled/disabled status. Admins can toggle sources on or off to control which data feeds are active.</li>
           </ul>
           <p><strong>Admin Actions:</strong> Admins can manually trigger edge functions (Fetch Events, Analyze Events, Generate Daily Bias, Fetch Price Data, Compute Indicators) from the Admin Panel's Actions tab, without waiting for the scheduled cron jobs.</p>
@@ -245,6 +261,7 @@ import { MatDividerModule } from '@angular/material/divider';
             <li><strong>7:00 & 19:00 UTC</strong> - Price candle data fetched for all pairs (Finnhub / TwelveData)</li>
             <li><strong>7:30 & 19:30 UTC</strong> - Technical indicators computed (RSI, MACD, SMA, EMA, ATR, support/resistance)</li>
             <li><strong>3x daily (8am, 2pm, 8pm UTC)</strong> - Daily bias generated per pair (combines fundamentals + technicals)</li>
+            <li><strong>15 min after bias</strong> - Push and email notifications sent for strong signals</li>
             <li><strong>Weekly</strong> - Events older than 90 days and candles older than 1 year cleaned up</li>
           </ul>
         </mat-card-content>

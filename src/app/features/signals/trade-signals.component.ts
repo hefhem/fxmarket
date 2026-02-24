@@ -8,6 +8,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SignalsService } from '../../core/services/signals.service';
+import { AuthService } from '../../core/services/auth.service';
 import { ConfidenceMeterComponent } from '../../shared/components/confidence-meter/confidence-meter.component';
 import { SignalType, TradeSignal } from '../../core/models';
 
@@ -167,7 +168,12 @@ import { SignalType, TradeSignal } from '../../core/models';
                 @if (sig.recommended_entry_timing) {
                   <div class="timing-row">
                     <mat-icon>schedule</mat-icon>
-                    <span class="timing-text">{{ sig.recommended_entry_timing }}</span>
+                    <div class="timing-content">
+                      <span class="timing-text">{{ sig.recommended_entry_timing }}</span>
+                      @if (sig.entry_start_utc && sig.entry_end_utc) {
+                        <span class="timing-local">{{ getUserTimezone() }}: <strong>{{ formatToUserTz(sig.entry_start_utc) }} &ndash; {{ formatToUserTz(sig.entry_end_utc) }}</strong></span>
+                      }
+                    </div>
                   </div>
                 }
 
@@ -369,10 +375,19 @@ import { SignalType, TradeSignal } from '../../core/models';
       margin-top: 2px;
       flex-shrink: 0;
     }
+    .timing-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
     .timing-text {
       font-size: 11px;
       color: rgba(255,255,255,0.6);
       line-height: 1.5;
+    }
+    .timing-local {
+      font-size: 10px;
+      color: #64b5f6;
     }
 
     .reasoning {
@@ -404,7 +419,7 @@ import { SignalType, TradeSignal } from '../../core/models';
   `]
 })
 export class TradeSignalsComponent implements OnInit, OnDestroy {
-  constructor(public signalsService: SignalsService) {}
+  constructor(public signalsService: SignalsService, private authService: AuthService) {}
 
   async ngOnInit() {
     await this.signalsService.loadSignals();
@@ -477,6 +492,26 @@ export class TradeSignalsComponent implements OnInit, OnDestroy {
     const fundamentalDir = sig.bias_score > 0.1 ? 1 : sig.bias_score < -0.1 ? -1 : 0;
     const taDir = sig.ta_score > 0.1 ? 1 : sig.ta_score < -0.1 ? -1 : 0;
     return fundamentalDir === taDir ? 'check_circle' : 'warning';
+  }
+
+  getUserTimezone(): string {
+    return this.authService.profile()?.timezone || 'UTC';
+  }
+
+  formatToUserTz(utcDateStr: string): string {
+    try {
+      const date = new Date(utcDateStr);
+      if (isNaN(date.getTime())) return utcDateStr;
+      const tz = this.getUserTimezone();
+      return date.toLocaleTimeString('en-US', {
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return utcDateStr;
+    }
   }
 
   getAgreementText(sig: TradeSignal): string {

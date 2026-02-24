@@ -37,6 +37,8 @@ interface BiasResult {
   contributing_event_ids: string[];
   recommended_entry_timing: string;
   trade_session: string;
+  entry_start_utc: string;
+  entry_end_utc: string;
 }
 
 async function generateBiasWithClaude(pairAnalyses: PairAnalysis[]): Promise<BiasResult[]> {
@@ -83,11 +85,13 @@ Provide for each pair:
 - reasoning: 2-3 sentence summary of the directional bias${hasTechnical ? ' incorporating both fundamental and technical factors' : ''}
 - recommended_entry_timing: A specific, actionable trade entry recommendation including: the best date/time window (use today's date ${new Date().toISOString().split('T')[0]} or tomorrow if markets are closing), the forex session (e.g., "London open 08:00-10:00 UTC", "NY session 13:00-16:00 UTC"), and a brief reason why that window is optimal (e.g., liquidity, key data release, session overlap). Example: "Enter during London-NY overlap (13:00-16:00 UTC on ${new Date().toISOString().split('T')[0]}) when EUR liquidity peaks ahead of FOMC minutes."
 - trade_session: The primary recommended session, one of: "asian", "london", "new_york", "london_ny_overlap"
+- entry_start_utc: ISO 8601 datetime string for the start of the recommended entry window in UTC (e.g., "${new Date().toISOString().split('T')[0]}T13:00:00Z")
+- entry_end_utc: ISO 8601 datetime string for the end of the recommended entry window in UTC (e.g., "${new Date().toISOString().split('T')[0]}T16:00:00Z")
 
 Today's event analyses by pair:
 ${description}
 
-Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, direction, confidence, reasoning, recommended_entry_timing, trade_session }`;
+Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, direction, confidence, reasoning, recommended_entry_timing, trade_session, entry_start_utc, entry_end_utc }`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -127,6 +131,8 @@ Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, directi
       contributing_event_ids: [],
       recommended_entry_timing: b.recommended_entry_timing ?? '',
       trade_session: validSessions.includes(b.trade_session) ? b.trade_session : 'london',
+      entry_start_utc: b.entry_start_utc ?? '',
+      entry_end_utc: b.entry_end_utc ?? '',
     };
   }).filter((b: any) => b.pair_id);
 }
@@ -296,6 +302,8 @@ Deno.serve(async (req) => {
         combined_score: combinedScore !== null ? Math.round(combinedScore * 100) / 100 : null,
         recommended_entry_timing: b.recommended_entry_timing || null,
         trade_session: b.trade_session || null,
+        entry_start_utc: b.entry_start_utc || null,
+        entry_end_utc: b.entry_end_utc || null,
       };
     });
 
