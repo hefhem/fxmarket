@@ -221,15 +221,27 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch latest technical indicators for all active pairs
+    // Fetch latest technical indicators for active pairs (bounded query)
     const taMap = new Map<string, any>();
+    const pairIds = pairs.map((p: any) => p.id);
     try {
-      const { data: indicators } = await supabase
+      // First try today's indicators, fall back to yesterday's
+      let { data: indicators } = await supabase
         .from('technical_indicators')
         .select('pair_id, rsi_14, macd_line, macd_signal, macd_histogram, sma_20, sma_50, sma_200, support_level, resistance_level, ta_score, ta_signal')
-        .order('indicator_date', { ascending: false });
+        .in('pair_id', pairIds)
+        .eq('indicator_date', today);
 
-      // Get latest per pair
+      if (!indicators || indicators.length === 0) {
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const result = await supabase
+          .from('technical_indicators')
+          .select('pair_id, rsi_14, macd_line, macd_signal, macd_histogram, sma_20, sma_50, sma_200, support_level, resistance_level, ta_score, ta_signal')
+          .in('pair_id', pairIds)
+          .eq('indicator_date', yesterday);
+        indicators = result.data;
+      }
+
       if (indicators) {
         for (const ind of indicators) {
           if (!taMap.has(ind.pair_id)) {
@@ -238,12 +250,14 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Get latest candle close price for each pair
+      // Get latest candle close price for each pair (bounded: max 50 rows)
       const { data: latestCandles } = await supabase
         .from('price_candles')
         .select('pair_id, close')
+        .in('pair_id', pairIds)
         .eq('timeframe', 'D')
-        .order('open_time', { ascending: false });
+        .order('open_time', { ascending: false })
+        .limit(50);
 
       const priceMap = new Map<string, number>();
       if (latestCandles) {
@@ -279,8 +293,19 @@ Deno.serve(async (req) => {
       console.warn('Failed to fetch TA data (proceeding without):', taErr);
     }
 
-    // Generate bias with Claude
-    const biases = await generateBiasWithClaude(pairAnalyses);
+    // Generate bias with Claude in batches to avoid timeout
+    const batchSize = 8;
+    const biases: BiasResult[] = [];
+    for (let i = 0; i < pairAnalyses.length; i += batchSize) {
+      const batch = pairAnalyses.slice(i, i + batchSize);
+      try {
+        const batchBiases = await generateBiasWithClaude(batch);
+        biases.push(...batchBiases);
+      } catch (batchErr) {
+        console.error(`Claude batch ${i / batchSize + 1} failed:`, batchErr);
+        // Continue with other batches rather than failing entirely
+      }
+    }
 
     // Upsert daily bias with TA score and combined score
     const toUpsert = biases.map(b => {

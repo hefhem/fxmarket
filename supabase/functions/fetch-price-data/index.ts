@@ -72,6 +72,11 @@ async function fetchWithRetry(
 // Finnhub: Fetch forex candles
 // ============================================================
 
+function getFinnhubSymbol(base: string, quote: string): string[] {
+  // OANDA feed supports forex pairs and commodities (XAU, XAG)
+  return [`OANDA:${base}_${quote}`];
+}
+
 async function fetchFinnhubCandles(
   pairId: string,
   base: string,
@@ -79,33 +84,42 @@ async function fetchFinnhubCandles(
   fromTs: number,
   toTs: number
 ): Promise<CandleRow[]> {
-  // Finnhub forex symbol format: OANDA:BASE_QUOTE
-  const symbol = `OANDA:${base}_${quote}`;
-  const url = `https://finnhub.io/api/v1/forex/candle?symbol=${encodeURIComponent(symbol)}&resolution=D&from=${fromTs}&to=${toTs}&token=${FINNHUB_API_KEY}`;
+  const symbols = getFinnhubSymbol(base, quote);
 
-  const res = await fetchWithRetry(url);
-  const data = await res.json();
+  for (const symbol of symbols) {
+    const url = `https://finnhub.io/api/v1/forex/candle?symbol=${encodeURIComponent(symbol)}&resolution=D&from=${fromTs}&to=${toTs}&token=${FINNHUB_API_KEY}`;
 
-  if (data.s !== 'ok' || !data.t || !Array.isArray(data.t)) {
-    return [];
+    try {
+      const res = await fetchWithRetry(url);
+      const data = await res.json();
+
+      if (data.s === 'ok' && data.t && Array.isArray(data.t) && data.t.length > 0) {
+        const candles: CandleRow[] = [];
+        for (let i = 0; i < data.t.length; i++) {
+          candles.push({
+            pair_id: pairId,
+            timeframe: 'D',
+            open_time: new Date(data.t[i] * 1000).toISOString(),
+            open: data.o[i],
+            high: data.h[i],
+            low: data.l[i],
+            close: data.c[i],
+            volume: data.v?.[i] ?? 0,
+            source: 'finnhub',
+          });
+        }
+        return candles;
+      }
+    } catch (err) {
+      console.warn(`Finnhub symbol ${symbol} failed:`, err);
+    }
   }
 
-  const candles: CandleRow[] = [];
-  for (let i = 0; i < data.t.length; i++) {
-    candles.push({
-      pair_id: pairId,
-      timeframe: 'D',
-      open_time: new Date(data.t[i] * 1000).toISOString(),
-      open: data.o[i],
-      high: data.h[i],
-      low: data.l[i],
-      close: data.c[i],
-      volume: data.v?.[i] ?? 0,
-      source: 'finnhub',
-    });
-  }
+  return [];
+}
 
-  return candles;
+// Legacy single-symbol version reference removed
+
 }
 
 // ============================================================
@@ -235,7 +249,7 @@ Deno.serve(async (req) => {
           }
 
           if (candles.length === 0) {
-            throw new Error(`No candle data for ${pair.symbol}`);
+            throw new Error(`No candle data for ${pair.symbol} from any source (Finnhub key: ${FINNHUB_API_KEY ? 'set' : 'MISSING'}, TwelveData key: ${TWELVE_DATA_API_KEY ? 'set' : 'MISSING'})`);
           }
 
           // Upsert in batches of 100
@@ -269,9 +283,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Rate limit delay between batches (Finnhub: 60/min)
+      // Rate limit delay between batches (Finnhub free: 60/min)
       if (i + batchSize < pairs.length) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 3000));
       }
     }
 
