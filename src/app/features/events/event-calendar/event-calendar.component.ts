@@ -170,52 +170,55 @@ export class EventCalendarComponent implements OnInit {
 
   async loadMonth() {
     this.loading.set(true);
-    const date = this.currentDate();
-    const year = date.getFullYear();
-    const month = date.getMonth();
+    try {
+      const date = this.currentDate();
+      const year = date.getFullYear();
+      const month = date.getMonth();
 
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
 
-    // Get calendar grid start/end (include days from prev/next month)
-    const gridStart = new Date(firstDay);
-    gridStart.setDate(gridStart.getDate() - gridStart.getDay());
-    const gridEnd = new Date(lastDay);
-    gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
+      // Get calendar grid start/end (include days from prev/next month)
+      const gridStart = new Date(firstDay);
+      gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+      const gridEnd = new Date(lastDay);
+      gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
 
-    // Fetch events for the visible range
-    const { data } = await this.supabase.from('economic_events')
-      .select('*')
-      .gte('event_datetime', gridStart.toISOString())
-      .lte('event_datetime', gridEnd.toISOString())
-      .order('event_datetime', { ascending: true });
+      // Fetch events for the visible range
+      const { data } = await this.supabase.from('economic_events')
+        .select('*')
+        .gte('event_datetime', gridStart.toISOString())
+        .lte('event_datetime', gridEnd.toISOString())
+        .order('event_datetime', { ascending: true });
 
-    const events = (data ?? []) as EconomicEvent[];
-    const eventsByDate = new Map<string, EconomicEvent[]>();
-    events.forEach(e => {
-      const d = e.event_datetime.split('T')[0];
-      if (!eventsByDate.has(d)) eventsByDate.set(d, []);
-      eventsByDate.get(d)!.push(e);
-    });
-
-    const today = new Date().toISOString().split('T')[0];
-    const days: CalendarDay[] = [];
-    const cursor = new Date(gridStart);
-
-    while (cursor <= gridEnd) {
-      const dateStr = cursor.toISOString().split('T')[0];
-      days.push({
-        date: new Date(cursor),
-        dateStr,
-        isCurrentMonth: cursor.getMonth() === month,
-        isToday: dateStr === today,
-        events: eventsByDate.get(dateStr) ?? []
+      const events = (data ?? []) as EconomicEvent[];
+      const eventsByDate = new Map<string, EconomicEvent[]>();
+      events.forEach(e => {
+        const d = e.event_datetime.split('T')[0];
+        if (!eventsByDate.has(d)) eventsByDate.set(d, []);
+        eventsByDate.get(d)!.push(e);
       });
-      cursor.setDate(cursor.getDate() + 1);
-    }
 
-    this.calendarDays.set(days);
-    this.loading.set(false);
+      const today = new Date().toISOString().split('T')[0];
+      const days: CalendarDay[] = [];
+      const cursor = new Date(gridStart);
+
+      while (cursor <= gridEnd) {
+        const dateStr = cursor.toISOString().split('T')[0];
+        days.push({
+          date: new Date(cursor),
+          dateStr,
+          isCurrentMonth: cursor.getMonth() === month,
+          isToday: dateStr === today,
+          events: eventsByDate.get(dateStr) ?? []
+        });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      this.calendarDays.set(days);
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   prevMonth() {

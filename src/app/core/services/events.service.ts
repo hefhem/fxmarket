@@ -25,34 +25,36 @@ export class EventsService {
 
   async fetchEvents(filters: EventFilters = {}) {
     this.loadingSignal.set(true);
+    try {
+      let query = this.supabase.from('economic_events')
+        .select('*')
+        .order('event_datetime', { ascending: false })
+        .limit(filters.limit ?? 100);
 
-    let query = this.supabase.from('economic_events')
-      .select('*')
-      .order('event_datetime', { ascending: false })
-      .limit(filters.limit ?? 100);
+      if (filters.currency) {
+        query = query.eq('currency', filters.currency);
+      }
+      if (filters.impact) {
+        query = query.eq('impact', filters.impact);
+      }
+      if (filters.dateFrom) {
+        query = query.gte('event_datetime', filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        query = query.lte('event_datetime', filters.dateTo);
+      }
+      if (filters.search) {
+        query = query.ilike('event_name', `%${filters.search}%`);
+      }
 
-    if (filters.currency) {
-      query = query.eq('currency', filters.currency);
-    }
-    if (filters.impact) {
-      query = query.eq('impact', filters.impact);
-    }
-    if (filters.dateFrom) {
-      query = query.gte('event_datetime', filters.dateFrom);
-    }
-    if (filters.dateTo) {
-      query = query.lte('event_datetime', filters.dateTo);
-    }
-    if (filters.search) {
-      query = query.ilike('event_name', `%${filters.search}%`);
-    }
+      const { data, error } = await query;
+      if (error) throw error;
 
-    const { data, error } = await query;
-    if (error) throw error;
-
-    this.eventsSignal.set((data ?? []) as EconomicEvent[]);
-    this.loadingSignal.set(false);
-    return data;
+      this.eventsSignal.set((data ?? []) as EconomicEvent[]);
+      return data;
+    } finally {
+      this.loadingSignal.set(false);
+    }
   }
 
   async fetchEventAnalysis(eventId: string): Promise<EventAnalysis | null> {

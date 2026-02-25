@@ -21,21 +21,24 @@ export class WatchlistService {
     if (!user) return [];
 
     this.loadingSignal.set(true);
-    const { data, error } = await this.supabase.from('watchlists')
-      .select('*, currency_pairs(symbol, display_name)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await this.supabase.from('watchlists')
+        .select('*, currency_pairs(symbol, display_name)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    const items = (data ?? []).map((w: any) => ({
-      ...w,
-      pair_symbol: w.currency_pairs?.symbol
-    })) as Watchlist[];
+      const items = (data ?? []).map((w: any) => ({
+        ...w,
+        pair_symbol: w.currency_pairs?.symbol
+      })) as Watchlist[];
 
-    this.itemsSignal.set(items);
-    this.loadingSignal.set(false);
-    return items;
+      this.itemsSignal.set(items);
+      return items;
+    } finally {
+      this.loadingSignal.set(false);
+    }
   }
 
   async addPair(pairId: string): Promise<void> {
