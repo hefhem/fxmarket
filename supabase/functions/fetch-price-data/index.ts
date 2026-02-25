@@ -120,8 +120,6 @@ async function fetchFinnhubCandles(
 
 // Legacy single-symbol version reference removed
 
-}
-
 // ============================================================
 // Twelve Data: Fallback fetch forex candles
 // ============================================================
