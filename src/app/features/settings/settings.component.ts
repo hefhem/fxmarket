@@ -61,7 +61,7 @@ interface DataSource {
               <mat-label>Timezone</mat-label>
               <mat-select formControlName="timezone">
                 @for (tz of timezones; track tz) {
-                  <mat-option [value]="tz">{{ tz }}</mat-option>
+                  <mat-option [value]="tz">{{ timezoneLabels[tz] || tz }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
@@ -303,11 +303,30 @@ export class SettingsComponent implements OnInit {
   allPairs = ALL_PAIRS;
 
   timezones = [
-    'UTC', 'America/New_York', 'America/Chicago', 'America/Denver',
+    'UTC', 'Africa/Lagos', 'America/New_York', 'America/Chicago', 'America/Denver',
     'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Europe/Berlin',
-    'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Singapore', 'Australia/Sydney',
-    'Pacific/Auckland'
+    'Asia/Dubai', 'Asia/Kolkata', 'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Singapore',
+    'Australia/Sydney', 'Pacific/Auckland'
   ];
+
+  timezoneLabels: Record<string, string> = {
+    'UTC': 'UTC (GMT+0)',
+    'Africa/Lagos': 'Lagos (GMT+1 / WAT)',
+    'America/New_York': 'New York (GMT-5 / EST)',
+    'America/Chicago': 'Chicago (GMT-6 / CST)',
+    'America/Denver': 'Denver (GMT-7 / MST)',
+    'America/Los_Angeles': 'Los Angeles (GMT-8 / PST)',
+    'Europe/London': 'London (GMT+0 / GMT)',
+    'Europe/Paris': 'Paris (GMT+1 / CET)',
+    'Europe/Berlin': 'Berlin (GMT+1 / CET)',
+    'Asia/Dubai': 'Dubai (GMT+4 / GST)',
+    'Asia/Kolkata': 'Kolkata (GMT+5:30 / IST)',
+    'Asia/Tokyo': 'Tokyo (GMT+9 / JST)',
+    'Asia/Shanghai': 'Shanghai (GMT+8 / CST)',
+    'Asia/Singapore': 'Singapore (GMT+8 / SGT)',
+    'Australia/Sydney': 'Sydney (GMT+11 / AEDT)',
+    'Pacific/Auckland': 'Auckland (GMT+13 / NZDT)',
+  };
 
   togglingPush = signal(false);
   smtpActive = signal(false);
