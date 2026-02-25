@@ -179,7 +179,7 @@ supabase functions deploy compute-indicators --no-verify-jwt
 | `fetch-price-data` | Cron (7am/7pm UTC) + Manual | Fetches OHLCV candles from Finnhub/TwelveData |
 | `compute-indicators` | Cron (7:30am/7:30pm UTC) + Manual | Computes RSI, MACD, SMA, EMA, ATR, support/resistance |
 | `send-push-notification` | Cron (15min after bias) + Manual | Sends browser push + triggers email for strong signals |
-| `send-email-notification` | Called by push-notification + Manual | Sends email alerts via SMTP |
+| `send-email-notification` | Called by push-notification + Manual | Sends email alerts via Resend/SendGrid/Brevo API |
 
 ---
 
@@ -439,10 +439,14 @@ In **Supabase Dashboard > Authentication > URL Configuration**:
 
 ### Email Notifications Not Sending
 
-1. Check SMTP settings in Admin > Email/SMTP
-2. Send a test email first
-3. Gmail requires App Password (not regular password)
-4. Check system_logs for `send-email-notification` errors
+1. Check email provider settings in **Admin > Email** tab
+2. Send a test email first to verify API key works
+3. Ensure your provider account is active and domain is verified:
+   - **Resend**: Verify a sending domain or use onboarding email
+   - **SendGrid**: Complete sender verification
+   - **Brevo**: Verify sender email address
+4. Check `system_logs` table for `send-email-notification` errors
+5. Verify users have **email_notifications** enabled in Settings
 
 ---
 
@@ -479,7 +483,7 @@ daily_trade_bias table (score, direction, confidence, timing, session)
     ↓ [send-push-notification - 15min after bias]
     ├→ Browser push notifications (Web Push API)
     ├→ In-app notifications (notifications table)
-    └→ Email alerts (SMTP via send-email-notification)
+    └→ Email alerts (Resend/SendGrid/Brevo via send-email-notification)
 ```
 
 ### Database Tables
@@ -498,7 +502,7 @@ daily_trade_bias table (score, direction, confidence, timing, session)
 | `alerts` | User alert rules |
 | `notifications` | In-app notifications |
 | `push_subscriptions` | Web Push subscription endpoints |
-| `smtp_settings` | SMTP email configuration (singleton) |
+| `smtp_settings` | Email provider configuration - Resend/SendGrid/Brevo (singleton) |
 | `data_source_settings` | Data source enable/disable toggles |
 | `system_logs` | System audit trail |
 
@@ -529,7 +533,7 @@ npm install
 # 2. Setup Supabase
 #    - Create project at supabase.com
 #    - Enable extensions: pg_cron, pg_net, pgsodium
-#    - Run migrations 001-012 in SQL Editor (skip 004)
+#    - Run migrations 001-013 in SQL Editor (skip 004)
 #    - Set vault secrets (see Section 4)
 
 # 3. Deploy edge functions
