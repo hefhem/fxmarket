@@ -108,6 +108,7 @@ Run these migrations **in order** via **Supabase Dashboard > SQL Editor**. Each 
 | 11 | `011_trade_timing.sql` | Trade timing columns on daily_trade_bias |
 | 12 | `012_fix_cron_and_email.sql` | Fixed cron jobs + SMTP settings + email notifications |
 | 13 | `013_email_provider.sql` | Add provider + api_key columns for HTTP-based email |
+| 14 | `014_smtp_provider.sql` | Add 'smtp' as provider option for direct SMTP relay |
 
 **IMPORTANT** - Before running migration 009, edit the admin email:
 
@@ -179,7 +180,7 @@ supabase functions deploy compute-indicators --no-verify-jwt
 | `fetch-price-data` | Cron (7am/7pm UTC) + Manual | Fetches OHLCV candles from Finnhub/TwelveData |
 | `compute-indicators` | Cron (7:30am/7:30pm UTC) + Manual | Computes RSI, MACD, SMA, EMA, ATR, support/resistance |
 | `send-push-notification` | Cron (15min after bias) + Manual | Sends browser push + triggers email for strong signals |
-| `send-email-notification` | Called by push-notification + Manual | Sends email alerts via Resend/SendGrid/Brevo API |
+| `send-email-notification` | Called by push-notification + Manual | Sends email alerts via Resend/SendGrid/Brevo API or SMTP relay |
 
 ---
 
@@ -214,6 +215,23 @@ To generate VAPID keys:
 ```bash
 npx web-push generate-vapid-keys
 ```
+
+### SMTP Relay (optional, for direct SMTP provider)
+
+If you want to use your own SMTP server (Gmail, Outlook, etc.) instead of an HTTP email provider, you need to set up a Cloudflare Pages Function as an SMTP relay. This is necessary because Supabase Edge Functions cannot make raw TCP connections.
+
+| Variable | Where | Description |
+|----------|-------|-------------|
+| `SMTP_RELAY_KEY` | Cloudflare Pages env | Shared secret for relay auth |
+| `SMTP_RELAY_KEY` | Supabase Edge Functions | Same shared secret |
+| `SMTP_RELAY_URL` | Supabase Edge Functions | `https://<your-cf-pages-domain>/api/send-email` |
+
+Generate the shared secret:
+```bash
+openssl rand -hex 32
+```
+
+The relay function is automatically deployed from `functions/api/send-email.ts` when you deploy to Cloudflare Pages. Set the `SMTP_RELAY_KEY` environment variable in Cloudflare Pages dashboard under **Settings > Environment Variables**.
 
 > Note: `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are automatically available to edge functions - no need to set them.
 
@@ -308,6 +326,8 @@ ON CONFLICT DO NOTHING;
 
 ### 9.2 Configure Email Notifications
 
+#### Option A: HTTP Email Provider (easiest)
+
 1. Sign up for one of these free email providers:
 
 | Provider | Free Tier | Sign Up | API Key Format |
@@ -324,6 +344,31 @@ ON CONFLICT DO NOTHING;
 7. Toggle **Enable** when ready
 
 > **Resend note**: You must verify a domain or use their onboarding email to send. Follow their setup guide after sign-up.
+
+#### Option B: SMTP Server (Gmail, Outlook, etc.)
+
+Use your own SMTP server directly. Emails are relayed through a Cloudflare Pages Function.
+
+**Prerequisites**: Set up the SMTP relay env vars (see Section 6 > SMTP Relay).
+
+1. Log in as admin
+2. Go to **Admin Panel > Email** tab
+3. Select **SMTP Server** as the provider
+4. Enter your SMTP server details:
+
+| Setting | Gmail | Outlook | Yahoo |
+|---------|-------|---------|-------|
+| Host | `smtp.gmail.com` | `smtp-mail.outlook.com` | `smtp.mail.yahoo.com` |
+| Port | 587 | 587 | 465 |
+| Encryption | STARTTLS | STARTTLS | SSL |
+| Username | your Gmail address | your Outlook address | your Yahoo address |
+| Password | App Password | account password | App Password |
+
+5. Set **From Email** (usually same as username) and **From Name**
+6. Click **Send Test Email** to verify
+7. Toggle **Enable** when ready
+
+> **Gmail note**: You must enable 2-Factor Authentication, then generate an App Password at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords). Regular Gmail passwords will not work.
 
 ### 9.3 Verify Cron Jobs
 
@@ -483,7 +528,7 @@ daily_trade_bias table (score, direction, confidence, timing, session)
     ↓ [send-push-notification - 15min after bias]
     ├→ Browser push notifications (Web Push API)
     ├→ In-app notifications (notifications table)
-    └→ Email alerts (Resend/SendGrid/Brevo via send-email-notification)
+    └→ Email alerts (Resend/SendGrid/Brevo/SMTP via send-email-notification)
 ```
 
 ### Database Tables
@@ -502,7 +547,7 @@ daily_trade_bias table (score, direction, confidence, timing, session)
 | `alerts` | User alert rules |
 | `notifications` | In-app notifications |
 | `push_subscriptions` | Web Push subscription endpoints |
-| `smtp_settings` | Email provider configuration - Resend/SendGrid/Brevo (singleton) |
+| `smtp_settings` | Email provider configuration - Resend/SendGrid/Brevo/SMTP (singleton) |
 | `data_source_settings` | Data source enable/disable toggles |
 | `system_logs` | System audit trail |
 
@@ -533,7 +578,7 @@ npm install
 # 2. Setup Supabase
 #    - Create project at supabase.com
 #    - Enable extensions: pg_cron, pg_net, pgsodium
-#    - Run migrations 001-013 in SQL Editor (skip 004)
+#    - Run migrations 001-014 in SQL Editor (skip 004)
 #    - Set vault secrets (see Section 4)
 
 # 3. Deploy edge functions

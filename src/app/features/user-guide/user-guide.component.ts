@@ -205,6 +205,14 @@ import { MatDividerModule } from '@angular/material/divider';
             <li><strong>Resend</strong> - 100 emails/day free. Sign up at <code>resend.com</code>, get an API key.</li>
             <li><strong>SendGrid</strong> - 100 emails/day free. Sign up at <code>sendgrid.com</code>, create an API key.</li>
             <li><strong>Brevo</strong> - 300 emails/day free. Sign up at <code>brevo.com</code>, get an API key from SMTP & API settings.</li>
+            <li><strong>SMTP Server</strong> - Use your own SMTP server (Gmail, Outlook, custom). Relayed via Cloudflare Pages Function.</li>
+          </ul>
+          <p><strong>SMTP Server setup:</strong></p>
+          <ul>
+            <li><strong>Gmail</strong> - Host: <code>smtp.gmail.com</code>, Port: 587, Encryption: STARTTLS. Requires a Google App Password (enable 2-Factor Authentication first, then generate an App Password in Google Account settings).</li>
+            <li><strong>Outlook/Hotmail</strong> - Host: <code>smtp-mail.outlook.com</code>, Port: 587, Encryption: STARTTLS. Use your Outlook email and password.</li>
+            <li><strong>Yahoo</strong> - Host: <code>smtp.mail.yahoo.com</code>, Port: 465, Encryption: SSL. Requires an App Password.</li>
+            <li><strong>Custom SMTP</strong> - Enter your SMTP host, port, credentials, and encryption type as provided by your email service.</li>
           </ul>
         </mat-expansion-panel>
 

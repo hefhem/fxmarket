@@ -4,12 +4,21 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 interface EmailSettings {
-  provider: 'resend' | 'sendgrid' | 'brevo';
+  provider: 'resend' | 'sendgrid' | 'brevo' | 'smtp';
   api_key: string;
   from_email: string;
   from_name: string;
   is_active: boolean;
+  // SMTP-specific fields (used when provider === 'smtp')
+  host: string;
+  port: number;
+  username: string;
+  encrypted_password: string;
+  encryption: 'ssl' | 'tls' | 'none';
 }
+
+const SMTP_RELAY_URL = Deno.env.get('SMTP_RELAY_URL') ?? '';
+const SMTP_RELAY_KEY = Deno.env.get('SMTP_RELAY_KEY') ?? '';
 
 function deriveSignal(biasScore: number, confidence: number): string {
   if (biasScore > 0.5 && confidence > 0.7) return 'STRONG BUY';
@@ -88,6 +97,36 @@ async function sendEmail(
       if (!resp.ok) {
         const err = await resp.text();
         return { success: false, error: `Brevo ${resp.status}: ${err}` };
+      }
+      return { success: true };
+    }
+
+    } else if (settings.provider === 'smtp') {
+      // SMTP via Cloudflare Pages Function relay
+      if (!SMTP_RELAY_URL) {
+        return { success: false, error: 'SMTP_RELAY_URL not configured in edge function env vars' };
+      }
+      const resp = await fetch(SMTP_RELAY_URL, {
+        method: 'POST',
+        headers: {
+          'X-Relay-Key': SMTP_RELAY_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          host: settings.host,
+          port: settings.port,
+          username: settings.username,
+          password: settings.encrypted_password,
+          encryption: settings.encryption,
+          from: fromField,
+          to,
+          subject,
+          html: htmlBody
+        })
+      });
+      if (!resp.ok) {
+        const err = await resp.text();
+        return { success: false, error: `SMTP relay ${resp.status}: ${err}` };
       }
       return { success: true };
     }
@@ -178,11 +217,24 @@ Deno.serve(async (req) => {
       api_key: settingsData.api_key || '',
       from_email: settingsData.from_email || '',
       from_name: settingsData.from_name || 'FX Market Analyzer',
-      is_active: settingsData.is_active
+      is_active: settingsData.is_active,
+      host: settingsData.host || '',
+      port: settingsData.port || 587,
+      username: settingsData.username || '',
+      encrypted_password: settingsData.encrypted_password || '',
+      encryption: settingsData.encryption || 'tls'
     };
 
-    if (!settings.api_key) {
-      return new Response(JSON.stringify({ error: 'No API key configured. Add your email provider API key in Admin > Email/SMTP.' }), {
+    // Validate credentials based on provider
+    if (settings.provider === 'smtp') {
+      if (!settings.host || !settings.username) {
+        return new Response(JSON.stringify({ error: 'SMTP host and username are required. Configure in Admin > Email.' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    } else if (!settings.api_key) {
+      return new Response(JSON.stringify({ error: 'No API key configured. Add your email provider API key in Admin > Email.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });

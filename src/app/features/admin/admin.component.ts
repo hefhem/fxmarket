@@ -41,11 +41,16 @@ interface SystemStats {
 
 interface EmailProviderSettings {
   id: string;
-  provider: 'resend' | 'sendgrid' | 'brevo';
+  provider: 'resend' | 'sendgrid' | 'brevo' | 'smtp';
   api_key: string;
   from_email: string;
   from_name: string;
   is_active: boolean;
+  host: string;
+  port: number;
+  username: string;
+  encrypted_password: string;
+  encryption: 'ssl' | 'tls' | 'none';
 }
 
 interface SourceHealth {
@@ -378,15 +383,60 @@ interface SourceHealth {
                           <mat-option value="resend">Resend (100 emails/day free)</mat-option>
                           <mat-option value="sendgrid">SendGrid (100 emails/day free)</mat-option>
                           <mat-option value="brevo">Brevo (300 emails/day free)</mat-option>
+                          <mat-option value="smtp">SMTP Server (Gmail, Outlook, etc.)</mat-option>
                         </mat-select>
                       </mat-form-field>
 
-                      <mat-form-field appearance="outline">
-                        <mat-label>API Key</mat-label>
-                        <input matInput formControlName="api_key" type="password"
-                          [placeholder]="smtpForm.get('provider')?.value === 'resend' ? 're_xxxxxxxx' : smtpForm.get('provider')?.value === 'sendgrid' ? 'SG.xxxxxxxx' : 'xkeysib-xxxxxxxx'">
-                      </mat-form-field>
+                      @if (smtpForm.get('provider')?.value !== 'smtp') {
+                        <mat-form-field appearance="outline">
+                          <mat-label>API Key</mat-label>
+                          <input matInput formControlName="api_key" type="password"
+                            [placeholder]="smtpForm.get('provider')?.value === 'resend' ? 're_xxxxxxxx' : smtpForm.get('provider')?.value === 'sendgrid' ? 'SG.xxxxxxxx' : 'xkeysib-xxxxxxxx'">
+                        </mat-form-field>
+                      }
                     </div>
+
+                    @if (smtpForm.get('provider')?.value === 'smtp') {
+                      <div class="smtp-grid">
+                        <mat-form-field appearance="outline">
+                          <mat-label>SMTP Host</mat-label>
+                          <input matInput formControlName="host" placeholder="smtp.gmail.com">
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline">
+                          <mat-label>Port</mat-label>
+                          <input matInput formControlName="port" type="number" placeholder="587">
+                        </mat-form-field>
+                      </div>
+
+                      <div class="smtp-grid">
+                        <mat-form-field appearance="outline">
+                          <mat-label>Username / Email</mat-label>
+                          <input matInput formControlName="username" placeholder="you@gmail.com">
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline">
+                          <mat-label>Password / App Password</mat-label>
+                          <input matInput formControlName="encrypted_password" type="password" placeholder="App password">
+                        </mat-form-field>
+                      </div>
+
+                      <div class="smtp-grid">
+                        <mat-form-field appearance="outline">
+                          <mat-label>Encryption</mat-label>
+                          <mat-select formControlName="encryption">
+                            <mat-option value="tls">STARTTLS (port 587)</mat-option>
+                            <mat-option value="ssl">SSL/TLS (port 465)</mat-option>
+                            <mat-option value="none">None (not recommended)</mat-option>
+                          </mat-select>
+                        </mat-form-field>
+                      </div>
+
+                      <p class="smtp-hint">
+                        <strong>Gmail:</strong> smtp.gmail.com, port 587, TLS. Requires an App Password (enable 2FA first).<br>
+                        <strong>Outlook:</strong> smtp-mail.outlook.com, port 587, TLS.
+                      </p>
+                    }
 
                     <div class="smtp-grid">
                       <mat-form-field appearance="outline">
@@ -405,7 +455,7 @@ interface SourceHealth {
                         @if (smtpSaving()) {
                           <mat-spinner diameter="18"></mat-spinner>
                         } @else {
-                          Save SMTP Settings
+                          Save Email Settings
                         }
                       </button>
                       <button mat-stroked-button type="button" (click)="testSmtp()" [disabled]="smtpTesting()">
@@ -605,6 +655,7 @@ interface SourceHealth {
       margin-top: 8px;
     }
     .smtp-actions button mat-icon { font-size: 18px; width: 18px; height: 18px; margin-right: 4px; }
+    .smtp-hint { font-size: 12px; color: rgba(255,255,255,0.45); margin: 0 0 16px; line-height: 1.7; }
   `]
 })
 export class AdminComponent implements OnInit {
@@ -637,7 +688,18 @@ export class AdminComponent implements OnInit {
       api_key: [''],
       from_email: [''],
       from_name: ['FX Market Analyzer'],
-      is_active: [false]
+      is_active: [false],
+      host: [''],
+      port: [587],
+      username: [''],
+      encrypted_password: [''],
+      encryption: ['tls']
+    });
+
+    // Auto-set port when encryption changes
+    this.smtpForm.get('encryption')?.valueChanges.subscribe(val => {
+      if (val === 'ssl') this.smtpForm.patchValue({ port: 465 });
+      else if (val === 'tls') this.smtpForm.patchValue({ port: 587 });
     });
   }
 
@@ -829,7 +891,12 @@ export class AdminComponent implements OnInit {
           api_key: data.api_key || '',
           from_email: data.from_email || '',
           from_name: data.from_name || 'FX Market Analyzer',
-          is_active: data.is_active || false
+          is_active: data.is_active || false,
+          host: data.host || '',
+          port: data.port || 587,
+          username: data.username || '',
+          encrypted_password: data.encrypted_password || '',
+          encryption: data.encryption || 'tls'
         });
       }
     } catch (err) {
