@@ -99,7 +99,6 @@ async function sendEmail(
         return { success: false, error: `Brevo ${resp.status}: ${err}` };
       }
       return { success: true };
-    }
 
     } else if (settings.provider === 'smtp') {
       // SMTP via Cloudflare Pages Function relay
