@@ -39,6 +39,9 @@ interface BiasResult {
   trade_session: string;
   entry_start_utc: string;
   entry_end_utc: string;
+  open_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
 }
 
 async function generateBiasWithClaude(pairAnalyses: PairAnalysis[]): Promise<BiasResult[]> {
@@ -87,11 +90,14 @@ Provide for each pair:
 - trade_session: The primary recommended session, one of: "asian", "london", "new_york", "london_ny_overlap"
 - entry_start_utc: ISO 8601 datetime string for the start of the recommended entry window in UTC (e.g., "${new Date().toISOString().split('T')[0]}T13:00:00Z")
 - entry_end_utc: ISO 8601 datetime string for the end of the recommended entry window in UTC (e.g., "${new Date().toISOString().split('T')[0]}T16:00:00Z")
+- open_price: The specific recommended entry/open price (number with up to 5 decimal places). Base this on current price, nearby support/resistance levels, and the bias direction. For a bullish bias, consider a pullback entry near support; for bearish, near resistance. If no technical data is available, use null.
+- stop_loss: The recommended stop loss price. Place it below the nearest support for bullish trades, or above the nearest resistance for bearish trades. Use ATR to ensure the stop is not too tight. If no technical data is available, use null.
+- take_profit: The recommended take profit price. Set it at the next resistance for bullish trades, or next support for bearish trades, ensuring at least a 1.5:1 reward-to-risk ratio. If no technical data is available, use null.
 
 Today's event analyses by pair:
 ${description}
 
-Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, direction, confidence, reasoning, recommended_entry_timing, trade_session, entry_start_utc, entry_end_utc }`;
+Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, direction, confidence, reasoning, recommended_entry_timing, trade_session, entry_start_utc, entry_end_utc, open_price, stop_loss, take_profit }`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -133,6 +139,9 @@ Respond with ONLY a valid JSON array. Each object: { symbol, bias_score, directi
       trade_session: validSessions.includes(b.trade_session) ? b.trade_session : 'london',
       entry_start_utc: b.entry_start_utc ?? '',
       entry_end_utc: b.entry_end_utc ?? '',
+      open_price: typeof b.open_price === 'number' ? b.open_price : null,
+      stop_loss: typeof b.stop_loss === 'number' ? b.stop_loss : null,
+      take_profit: typeof b.take_profit === 'number' ? b.take_profit : null,
     };
   }).filter((b: any) => b.pair_id);
 }
@@ -329,6 +338,9 @@ Deno.serve(async (req) => {
         trade_session: b.trade_session || null,
         entry_start_utc: b.entry_start_utc || null,
         entry_end_utc: b.entry_end_utc || null,
+        open_price: b.open_price,
+        stop_loss: b.stop_loss,
+        take_profit: b.take_profit,
       };
     });
 

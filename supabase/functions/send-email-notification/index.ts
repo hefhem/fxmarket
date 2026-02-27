@@ -136,9 +136,22 @@ async function sendEmail(
   }
 }
 
-function buildSignalEmailHtml(signals: Array<{ symbol: string; signal: string; score: number; confidence: number; reasoning: string; timing?: string }>): string {
+function buildSignalEmailHtml(signals: Array<{ symbol: string; signal: string; score: number; confidence: number; reasoning: string; timing?: string; open_price?: number | null; stop_loss?: number | null; take_profit?: number | null }>): string {
   const signalRows = signals.map(s => {
     const color = s.signal.includes('BUY') ? '#4caf50' : s.signal.includes('SELL') ? '#f44336' : '#9e9e9e';
+    const levelsHtml = (s.open_price || s.stop_loss || s.take_profit) ? `
+      <tr>
+        <td colspan="4" style="padding:6px 12px 12px">
+          <table style="width:100%;border-collapse:collapse">
+            <tr>
+              ${s.open_price ? `<td style="padding:6px 8px;background:#0a1628;border-radius:4px;text-align:center"><span style="font-size:10px;color:#64b5f6;display:block">OPEN</span><span style="font-size:14px;font-weight:bold;color:#64b5f6;font-family:monospace">${s.open_price.toFixed(5)}</span></td>` : ''}
+              ${s.stop_loss ? `<td style="padding:6px 8px;background:#1a0a0a;border-radius:4px;text-align:center"><span style="font-size:10px;color:#f44336;display:block">STOP LOSS</span><span style="font-size:14px;font-weight:bold;color:#f44336;font-family:monospace">${s.stop_loss.toFixed(5)}</span></td>` : ''}
+              ${s.take_profit ? `<td style="padding:6px 8px;background:#0a1a0a;border-radius:4px;text-align:center"><span style="font-size:10px;color:#4caf50;display:block">TAKE PROFIT</span><span style="font-size:14px;font-weight:bold;color:#4caf50;font-family:monospace">${s.take_profit.toFixed(5)}</span></td>` : ''}
+            </tr>
+          </table>
+        </td>
+      </tr>` : '';
+
     return `
       <tr>
         <td style="padding:12px;border-bottom:1px solid #2a2a4a;font-weight:bold">${s.symbol}</td>
@@ -151,7 +164,7 @@ function buildSignalEmailHtml(signals: Array<{ symbol: string; signal: string; s
           ${s.reasoning}
           ${s.timing ? `<br><span style="color:#ff9800">&#9200; ${s.timing}</span>` : ''}
         </td>
-      </tr>`;
+      </tr>${levelsHtml}`;
   }).join('');
 
   return `
@@ -285,7 +298,10 @@ Deno.serve(async (req) => {
         score: b.combined_score ?? b.bias_score,
         confidence: b.confidence,
         reasoning: b.ai_reasoning ?? '',
-        timing: b.recommended_entry_timing ?? ''
+        timing: b.recommended_entry_timing ?? '',
+        open_price: b.open_price ?? null,
+        stop_loss: b.stop_loss ?? null,
+        take_profit: b.take_profit ?? null,
       }))
       .filter((s: any) => s.signal === 'STRONG BUY' || s.signal === 'STRONG SELL');
 
@@ -295,15 +311,47 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get users with email notifications enabled
+    // Get users with email notifications enabled (include timezone)
     const { data: users } = await supabase
       .from('profiles')
-      .select('email')
+      .select('email, timezone')
       .eq('email_notifications', true)
       .eq('is_active', true);
 
     if (!users || users.length === 0) {
       return new Response(JSON.stringify({ message: 'No users have email notifications enabled' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Filter users by timezone: only send to users whose local time is within 7:00-9:30am
+    const now = new Date();
+    const eligibleUsers = users.filter((u: any) => {
+      const tz = u.timezone || 'UTC';
+      try {
+        const localTimeStr = now.toLocaleString('en-US', { timeZone: tz, hour12: false });
+        const parts = localTimeStr.split(', ')[1]?.split(':');
+        if (!parts) return true; // fallback: send if can't parse
+        const hour = parseInt(parts[0], 10);
+        const minute = parseInt(parts[1], 10);
+        const totalMinutes = hour * 60 + minute;
+        // 7:00am = 420 min, 9:30am = 570 min
+        return totalMinutes >= 420 && totalMinutes <= 570;
+      } catch {
+        // If timezone is invalid, send anyway to not lose the notification
+        return true;
+      }
+    });
+
+    const skippedCount = users.length - eligibleUsers.length;
+    console.log(`Timezone filter: ${eligibleUsers.length} users in morning window, ${skippedCount} skipped`);
+
+    if (eligibleUsers.length === 0) {
+      return new Response(JSON.stringify({
+        message: 'No users in morning window right now',
+        total_users: users.length,
+        skipped: skippedCount
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -314,7 +362,7 @@ Deno.serve(async (req) => {
     let sent = 0;
     let failed = 0;
 
-    for (const user of users) {
+    for (const user of eligibleUsers) {
       const result = await sendEmail(settings, user.email, subject, html);
       if (result.success) {
         sent++;
@@ -327,8 +375,8 @@ Deno.serve(async (req) => {
     await supabase.from('system_logs').insert({
       level: 'info',
       source: 'send-email-notification',
-      message: `Sent ${sent} emails via ${settings.provider} for ${strongSignals.length} strong signals (${failed} failed)`,
-      metadata: { sent, failed, signals: strongSignals.length, provider: settings.provider }
+      message: `Sent ${sent} emails via ${settings.provider} for ${strongSignals.length} strong signals (${failed} failed, ${skippedCount} skipped timezone)`,
+      metadata: { sent, failed, signals: strongSignals.length, provider: settings.provider, skipped_timezone: skippedCount }
     });
 
     return new Response(JSON.stringify({

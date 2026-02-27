@@ -88,6 +88,34 @@ import { IndicatorsPanelComponent } from '../../shared/components/indicators-pan
                       <span>Your time ({{ getUserTimezone() }}): <strong>{{ formatToUserTz(currentBias()!.entry_start_utc!) }} &ndash; {{ formatToUserTz(currentBias()!.entry_end_utc!) }}</strong></span>
                     </div>
                   }
+                  @if (currentBias()!.open_price || currentBias()!.stop_loss || currentBias()!.take_profit) {
+                    <div class="entry-levels-section">
+                      <div class="levels-header">
+                        <mat-icon>price_change</mat-icon>
+                        <h4>Entry Levels</h4>
+                      </div>
+                      <div class="levels-grid">
+                        @if (currentBias()!.open_price) {
+                          <div class="level-item level-open">
+                            <span class="level-label">Open Price</span>
+                            <span class="level-value">{{ currentBias()!.open_price!.toFixed(5) }}</span>
+                          </div>
+                        }
+                        @if (currentBias()!.stop_loss) {
+                          <div class="level-item level-sl">
+                            <span class="level-label">Stop Loss</span>
+                            <span class="level-value">{{ currentBias()!.stop_loss!.toFixed(5) }}</span>
+                          </div>
+                        }
+                        @if (currentBias()!.take_profit) {
+                          <div class="level-item level-tp">
+                            <span class="level-label">Take Profit</span>
+                            <span class="level-value">{{ currentBias()!.take_profit!.toFixed(5) }}</span>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
                 </div>
               }
             </mat-card-content>
@@ -314,6 +342,59 @@ import { IndicatorsPanelComponent } from '../../shared/components/indicators-pan
       color: #64b5f6;
     }
     .local-time-row strong { color: #64b5f6; }
+
+    .entry-levels-section {
+      margin-top: 16px;
+      padding-left: 28px;
+    }
+    .levels-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .levels-header mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: #7c4dff;
+    }
+    .levels-header h4 { margin: 0; font-size: 13px; font-weight: 600; }
+    .levels-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .level-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 8px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .level-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .level-value {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Roboto Mono', monospace;
+    }
+    .level-open .level-label { color: #64b5f6; }
+    .level-open .level-value { color: #64b5f6; }
+    .level-sl .level-label { color: #f44336; }
+    .level-sl .level-value { color: #f44336; }
+    .level-tp .level-label { color: #4caf50; }
+    .level-tp .level-value { color: #4caf50; }
+
+    @media (max-width: 400px) {
+      .levels-grid { grid-template-columns: 1fr; }
+    }
 
     .no-bias-card { text-align: center; padding: 32px; margin-bottom: 32px; }
     .no-bias-card mat-icon {

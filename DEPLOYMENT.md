@@ -109,6 +109,7 @@ Run these migrations **in order** via **Supabase Dashboard > SQL Editor**. Each 
 | 12 | `012_fix_cron_and_email.sql` | Fixed cron jobs + SMTP settings + email notifications |
 | 13 | `013_email_provider.sql` | Add provider + api_key columns for HTTP-based email |
 | 14 | `014_smtp_provider.sql` | Add 'smtp' as provider option for direct SMTP relay |
+| 15 | `015_trade_levels.sql` | Add open_price, stop_loss, take_profit to daily_trade_bias |
 
 **IMPORTANT** - Before running migration 009, edit the admin email:
 
@@ -578,7 +579,7 @@ npm install
 # 2. Setup Supabase
 #    - Create project at supabase.com
 #    - Enable extensions: pg_cron, pg_net, pgsodium
-#    - Run migrations 001-014 in SQL Editor (skip 004)
+#    - Run migrations 001-015 in SQL Editor (skip 004)
 #    - Set vault secrets (see Section 4)
 
 # 3. Deploy edge functions

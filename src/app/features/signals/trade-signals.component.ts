@@ -177,6 +177,30 @@ import { SignalType, TradeSignal } from '../../core/models';
                   </div>
                 }
 
+                <!-- Entry Levels -->
+                @if (sig.open_price || sig.stop_loss || sig.take_profit) {
+                  <div class="entry-levels-row">
+                    @if (sig.open_price) {
+                      <div class="level-chip level-open">
+                        <span class="level-lbl">Open</span>
+                        <span class="level-val">{{ sig.open_price.toFixed(5) }}</span>
+                      </div>
+                    }
+                    @if (sig.stop_loss) {
+                      <div class="level-chip level-sl">
+                        <span class="level-lbl">SL</span>
+                        <span class="level-val">{{ sig.stop_loss.toFixed(5) }}</span>
+                      </div>
+                    }
+                    @if (sig.take_profit) {
+                      <div class="level-chip level-tp">
+                        <span class="level-lbl">TP</span>
+                        <span class="level-val">{{ sig.take_profit.toFixed(5) }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+
                 <!-- AI Reasoning -->
                 <p class="reasoning">{{ sig.ai_reasoning }}</p>
 
@@ -389,6 +413,32 @@ import { SignalType, TradeSignal } from '../../core/models';
       font-size: 10px;
       color: #64b5f6;
     }
+
+    .entry-levels-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .level-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'Roboto Mono', monospace;
+    }
+    .level-lbl {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 9px;
+      letter-spacing: 0.3px;
+    }
+    .level-val { font-weight: 700; }
+    .level-open { background: rgba(100,181,246,0.1); color: #64b5f6; }
+    .level-sl { background: rgba(244,67,54,0.1); color: #f44336; }
+    .level-tp { background: rgba(76,175,80,0.1); color: #4caf50; }
 
     .reasoning {
       font-size: 12px;

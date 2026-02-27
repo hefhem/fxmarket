@@ -45,6 +45,9 @@ export interface TradeSignal {
   trade_session?: TradeSession | null;
   entry_start_utc?: string | null;
   entry_end_utc?: string | null;
+  open_price?: number | null;
+  stop_loss?: number | null;
+  take_profit?: number | null;
 }
 
 export type TradeSession = 'asian' | 'london' | 'new_york' | 'london_ny_overlap';
@@ -65,6 +68,9 @@ export interface DailyTradeBias {
   trade_session?: TradeSession | null;
   entry_start_utc?: string | null;
   entry_end_utc?: string | null;
+  open_price?: number | null;
+  stop_loss?: number | null;
+  take_profit?: number | null;
   created_at: string;
   updated_at: string;
 }

@@ -69,6 +69,9 @@ export class SignalsService {
           trade_session: row.trade_session ?? null,
           entry_start_utc: row.entry_start_utc ?? null,
           entry_end_utc: row.entry_end_utc ?? null,
+          open_price: row.open_price ?? null,
+          stop_loss: row.stop_loss ?? null,
+          take_profit: row.take_profit ?? null,
         };
       });
 

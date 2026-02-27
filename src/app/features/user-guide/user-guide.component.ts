@@ -71,6 +71,7 @@ import { MatDividerModule } from '@angular/material/divider';
           <ul>
             <li><strong>Current Bias</strong> - Today's AI-generated directional bias with full reasoning</li>
             <li><strong>Trade Timing</strong> - AI-recommended entry window with specific date/time and optimal trading session (Asian, London, New York, or London/NY Overlap). Helps you decide exactly when to place your trade for best execution.</li>
+            <li><strong>Entry Levels</strong> - AI-generated Open Price, Stop Loss, and Take Profit levels based on support/resistance, ATR, and current price. The open price suggests an optimal entry point, SL protects against adverse moves, and TP targets the next key level with at least 1.5:1 reward-to-risk ratio.</li>
             <li><strong>Price Chart</strong> - Interactive candlestick chart with SMA overlays and MACD sub-chart</li>
             <li><strong>Technical Indicators</strong> - RSI, MACD, Moving Averages, Support/Resistance, ATR</li>
             <li><strong>History Chart</strong> - Visual 30-day bias history showing directional changes</li>
@@ -134,7 +135,7 @@ import { MatDividerModule } from '@angular/material/divider';
             <li><strong>SELL</strong> - Bias score &lt; -20 with confidence &gt; 50% (light red)</li>
             <li><strong>STRONG SELL</strong> - Bias score &lt; -50 with confidence &gt; 70% (bright red)</li>
           </ul>
-          <p>Each signal card shows the pair, bias score bar, confidence meter, and AI reasoning. Click any card to navigate to the detailed pair analysis page.</p>
+          <p>Each signal card shows the pair, bias score bar, confidence meter, entry levels (Open/SL/TP), and AI reasoning. Click any card to navigate to the detailed pair analysis page.</p>
           <p><strong>Summary chips</strong> at the top show a count of each signal type for a quick market overview.</p>
         </mat-expansion-panel>
 
@@ -197,7 +198,8 @@ import { MatDividerModule } from '@angular/material/divider';
             <li><strong>Admin Setup</strong> - An administrator must first configure an email provider in Admin > Email tab</li>
             <li><strong>User Opt-In</strong> - Once configured, users can enable email notifications in Settings</li>
             <li><strong>Strong Signals Only</strong> - Emails are sent only for STRONG BUY and STRONG SELL signals</li>
-            <li><strong>Rich Content</strong> - Emails include pair name, signal type, score, confidence, AI reasoning, and recommended trade timing</li>
+            <li><strong>Rich Content</strong> - Emails include pair name, signal type, score, confidence, AI reasoning, recommended trade timing, and entry levels (Open Price, Stop Loss, Take Profit)</li>
+            <li><strong>Morning Delivery</strong> - Emails are delivered around 7:00-9:30am in your configured timezone, so you receive your daily signals before the trading day begins. Make sure your timezone is set correctly in Settings.</li>
             <li><strong>Test Email</strong> - Admins can send a test email from the configuration page to verify settings</li>
           </ul>
           <p><strong>Supported providers:</strong></p>
