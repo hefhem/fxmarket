@@ -2,25 +2,26 @@ import { inject } from '@angular/core';
 import { Router, CanActivateFn } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
-export const authGuard: CanActivateFn = () => {
+/** Wait for auth to finish loading, with a 10s safety timeout. */
+function waitForAuth(auth: AuthService): Promise<void> {
+  if (!auth.loading()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => { clearInterval(check); resolve(); }, 10000);
+    const check = setInterval(() => {
+      if (!auth.loading()) {
+        clearInterval(check);
+        clearTimeout(timeout);
+        resolve();
+      }
+    }, 50);
+  });
+}
+
+export const authGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  if (auth.loading()) {
-    return new Promise<boolean>((resolve) => {
-      const check = setInterval(() => {
-        if (!auth.loading()) {
-          clearInterval(check);
-          if (auth.isAuthenticated()) {
-            resolve(true);
-          } else {
-            router.navigate(['/auth/login']);
-            resolve(false);
-          }
-        }
-      }, 50);
-    });
-  }
+  await waitForAuth(auth);
 
   if (auth.isAuthenticated()) return true;
 
@@ -28,25 +29,11 @@ export const authGuard: CanActivateFn = () => {
   return false;
 };
 
-export const adminGuard: CanActivateFn = () => {
+export const adminGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  if (auth.loading()) {
-    return new Promise<boolean>((resolve) => {
-      const check = setInterval(() => {
-        if (!auth.loading()) {
-          clearInterval(check);
-          if (auth.isAdmin()) {
-            resolve(true);
-          } else {
-            router.navigate(['/dashboard']);
-            resolve(false);
-          }
-        }
-      }, 50);
-    });
-  }
+  await waitForAuth(auth);
 
   if (auth.isAdmin()) return true;
 
@@ -54,25 +41,11 @@ export const adminGuard: CanActivateFn = () => {
   return false;
 };
 
-export const guestGuard: CanActivateFn = () => {
+export const guestGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  if (auth.loading()) {
-    return new Promise<boolean>((resolve) => {
-      const check = setInterval(() => {
-        if (!auth.loading()) {
-          clearInterval(check);
-          if (!auth.isAuthenticated()) {
-            resolve(true);
-          } else {
-            router.navigate(['/dashboard']);
-            resolve(false);
-          }
-        }
-      }, 50);
-    });
-  }
+  await waitForAuth(auth);
 
   if (!auth.isAuthenticated()) return true;
 

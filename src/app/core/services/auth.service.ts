@@ -30,15 +30,19 @@ export class AuthService {
   }
 
   private async initAuth() {
-    const { data: { session } } = await this.supabase.auth.getSession();
-    this.sessionSignal.set(session);
+    try {
+      const { data: { session } } = await this.supabase.auth.getSession();
+      this.sessionSignal.set(session);
 
-    if (session?.user) {
-      await this.loadProfile(session.user.id);
-      await this.loadRoles(session.user.id);
+      if (session?.user) {
+        await this.loadProfile(session.user.id);
+        await this.loadRoles(session.user.id);
+      }
+    } catch (err) {
+      console.error('Auth initialization failed:', err);
+    } finally {
+      this.loadingSignal.set(false);
     }
-
-    this.loadingSignal.set(false);
 
     this.supabase.onAuthStateChange(async (event, session) => {
       this.sessionSignal.set(session);
