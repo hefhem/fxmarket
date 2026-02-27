@@ -151,7 +151,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     const socket = connect(
       { hostname: host, port },
-      { secureTransport: useImplicitTls ? 'on' : 'off' }
+      { secureTransport: useImplicitTls ? 'on' : encryption === 'tls' ? 'starttls' : 'off' }
     );
 
     let readable = socket.readable;
